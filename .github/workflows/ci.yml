@@ -1,4 +1,4 @@
-name: LLM Wiki CI
+name: LLM Wiki CI / CD
 
 on:
   push:
@@ -16,7 +16,7 @@ on:
 
 jobs:
   validate-wiki:
-    name: Validate OKF v0.2 & Knowledge Graph
+    name: Validate OKF v0.2 & Multi-User Integrity
     runs-on: ubuntu-latest
 
     steps:
@@ -28,18 +28,43 @@ jobs:
         with:
           python-version: '3.11'
 
-      - name: Run OKF v0.2 & LLM Wiki v2 Linter
+      - name: Run OKF v0.2 & Multi-User Linter
         run: |
           python3 scripts/lint_okf.py wiki/
 
-      - name: Build & Validate Knowledge Graph
+      - name: Dry-run Synchronization
         run: |
-          python3 scripts/build_graph.py wiki/
+          python3 scripts/sync_wiki.py
 
-      - name: Check for Uncommitted Changes
+  auto-sync:
+    name: Auto-Synchronize Wiki on Main Merge
+    needs: validate-wiki
+    if: github.ref == 'refs/heads/main' && github.event_name == 'push'
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        with:
+          token: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Set up Python 3.11
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+
+      - name: Rebuild Indexes, Changelogs & Knowledge Graph
         run: |
-          git status --porcelain
-          if [ -n "$(git status --porcelain)" ]; then
-            echo "::error::Wiki artifacts (graph.json, graph.mermaid, etc.) are out of date. Please run 'python3 scripts/build_graph.py wiki/' and commit the changes."
-            exit 1
+          python3 scripts/sync_wiki.py
+
+      - name: Commit & Push Updated Artifacts
+        run: |
+          git config --local user.email "action@github.com"
+          git config --local user.name "GitHub Action (Wiki Sync Bot)"
+          git add wiki/index.md wiki/*/index.md wiki/log.md wiki/graph.json wiki/graph.mermaid
+          if git diff --staged --quiet; then
+            echo "No artifact changes to commit."
+          else
+            git commit -m "chore(wiki): auto-synchronize indexes, changelog & knowledge graph [skip ci]"
+            git push
           fi

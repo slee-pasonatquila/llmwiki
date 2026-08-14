@@ -1,0 +1,28 @@
+[
+  {
+    "date": "2026-08-14",
+    "timestamp": "2026-08-14T09:00:00",
+    "author": "agent:antigravity/gemini-3.7-flash",
+    "action": "Google OKF v0.2 および LLM Wiki v2 仕様への全面移行を実施。",
+    "details": [
+      "全 Concept ファイルに generated, verified, sources（来歴リスト）、および本文脚注（[^source_id]）を導入。",
+      "Frontmatter に relations（セマンティックグラフ接続）および status を定義。",
+      "SCHEMA.md および README.md の運用ルール・構文規約を刷新。",
+      "lint_okf.py を OKF v0.2 バリデータに改修。"
+    ]
+  },
+  {
+    "date": "2026-08-14",
+    "timestamp": "2026-08-14T09:30:00",
+    "author": "human:slee",
+    "action": "初期 Concept ドキュメント群の査読および verified 承認。",
+    "details": []
+  },
+  {
+    "date": "2026-08-14",
+    "timestamp": "2026-08-14T10:00:00",
+    "author": "agent:antigravity/gemini-3.7-flash",
+    "action": "Glossary およびサンプル Concept（顧客要望、要件定義、概要設計、詳細設計、ADR）を登録。",
+    "details": []
+  }
+]

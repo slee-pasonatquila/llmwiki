@@ -1,69 +1,83 @@
-# LLM Wiki for Development Projects (Google OKF v0.2 & LLM Wiki v2 準拠)
+# LLM Wiki for Development Projects (Google OKF v0.2 & LLM Wiki v2 / Multi-User Compliant)
 
 本リポジトリは、開発プロジェクトにおける各種ドキュメント（顧客要望、要件定義書、概要設計書、詳細設計書、ADR、議事録等）を、**LLM Wiki v2 概念**（忘却曲線、確信度スコア、4層メモリ階層、型付きナレッジグラフ、ハイブリッド検索、自動フック）および **Google OKF (Open Knowledge Format) v0.2** 仕様に基づいて一元管理・運用するための統合ナレッジベースです。
 
-一次情報（Office / PDF / SQL / テキスト）を自動クレンジング・機密スクラビングして取り込み、人間と AI エージェント（Antigravity）が協調して高精度に閲覧・更新・検索・検査できる環境を提供します。
+一次情報（Office / PDF / SQL / テキスト）を自動クレンジング・機密スクラビングして取り込み、人間と複数の AI エージェント（Antigravity）、複数人の開発者が**コンフリクトなく並行して協調編集・検索・検証できるマルチユーザー設計**を備えています。
 
 ---
 
 ## 📚 目次
-1. [LLM Wiki v2 の 4 大コア概念](#-llm-wiki-v2-の-4-大コア概念)
-2. [リポジトリ構成とフォルダの役割](#-リポジトリ構成とフォルダの役割)
-3. [Antigravity Rules & ワークフロー統合](#-antigravity-rules--ワークフロー統合)
-4. [OKF v0.2 & LLM Wiki v2 Frontmatter 仕様](#-okf-v02--llm-wiki-v2-frontmatter-仕様)
-5. [Antigravity Skills の使い方](#-antigravity-skills-の使い方)
-6. [CLI 支援ツールの使い方](#-cli-支援ツールの使い方)
-7. [Git & GitHub CI/CD 運用フロー](#-git--github-cicd-運用フロー)
+1. [LLM Wiki v2 & マルチユーザー協調アーキテクチャ](#-llm-wiki-v2--マルチユーザー協調アーキテクチャ)
+2. [複数人協調・コンフリクト完全排除ルール](#-複数人協調コンフリクト完全排除ルール)
+3. [リポジトリ構成とフォルダの役割](#-リポジトリ構成とフォルダの役割)
+4. [Antigravity Rules & ワークフロー統合](#-antigravity-rules--ワークフロー統合)
+5. [OKF v0.2 & LLM Wiki v2 Frontmatter 仕様](#-okf-v02--llm-wiki-v2-frontmatter-仕様)
+6. [Antigravity Skills の使い方](#-antigravity-skills-の使い方)
+7. [CLI 支援ツールの使い方](#-cli-支援ツールの使い方)
+8. [Git & GitHub CI/CD 運用フロー](#-git--github-cicd-運用フロー)
 
 ---
 
-## 💡 LLM Wiki v2 の 4 大コア概念
+## 💡 LLM Wiki v2 & マルチユーザー協調アーキテクチャ
 
 ```mermaid
 flowchart TD
-    subgraph "1. Memory Lifecycle (4層構造 & 忘却曲線)"
-        WM["Working Memory (未整理メモ/観察)"] -->|要約・圧縮| EM["Episodic Memory (セッション要約/議事録)"]
-        EM -->|統合・抽象化| SM["Semantic Memory (仕様/設計/ADR)"]
-        SM -->|パターン抽出| PM["Procedural Memory (手順書/Runbook/Skill)"]
-        SM -.->|時間経過| Decay["Forgetting Curve (減衰) S = C × exp(-λt)"]
-        Decay -.->|再確認/アクセス| Reinforce["Reinforce (再強化/リセット)"]
-        Reinforce --> SM
+    subgraph "1. 分散編集 & 競合防止 (Multi-Author Workspace)"
+        U1["開発者 / エージェント A<br/>(feature/auth)"] -->|ドキュメント追加| F1["wiki/04_detailed_designs/api_login.md"]
+        U1 -->|断片ログ追加| L1["wiki/.changelogs/20260814_userA.json"]
+        
+        U2["開発者 / エージェント B<br/>(feature/db)"] -->|ドキュメント更新| F2["wiki/04_detailed_designs/table_users.md"]
+        U2 -->|断片ログ追加| L2["wiki/.changelogs/20260814_userB.json"]
     end
 
-    subgraph "2. Confidence Scoring & 矛盾解決"
-        CS["Confidence Score (0.0〜1.0)<br/>ソース数・権威性・人間検証"] --> Resolv["矛盾解決 (Contradiction Resolution)<br/>新旧比較 & Supersession"]
+    subgraph "2. メタデータ分離 (Zero-Git-Conflict Metrics Cache)"
+        Query["検索・閲覧・再強化"] --> DB[("wiki/.cache/metrics.db (SQLite)<br/>・アクセス履歴<br/>・動的忘却スコア<br/>・検索ヒット数")]
+        DB -.->|定期バッチ同期のみ| Frontmatter["Markdown Frontmatter<br/>(確定反映)"]
     end
 
-    subgraph "3. Knowledge Graphs"
-        Entities["Typed Entities"] --- Relations["Typed Relations<br/>(implements, depends_on, uses, contradicts)"]
-        Relations --> KGExport["Mermaid / JSON 可視化 & 影響範囲走査"]
+    subgraph "3. CI/CD 自動同期 & ガバナンス (GitHub Actions)"
+        PR["Pull Request"] --> CI_Lint["lint_okf.py<br/>・OKF v0.2 検証<br/>・重複ID/リンク切れ検査<br/>・Draft依存/矛盾検査"]
+        PR --> CO["CODEOWNERS レビュー承認"]
+        Merge["Main Merge"] --> CI_Sync["sync_wiki.py 自動実行<br/>・index.md 自動生成<br/>・log.md 自動集約<br/>・graph.json/mermaid 再構築"]
+        CI_Sync --> GitBot["Git Bot 自動コミット & プッシュ"]
     end
 
-    subgraph "4. Hybrid Search (統合検索)"
-        Query["開発者の自然言語クエリ"] --> BM25["BM25 (語彙/コード/N-gram)"]
-        Query --> Sem["Semantic (概念/意味類似度)"]
-        Query --> GraphWalk["Graph Proximity (関係性近傍)"]
-        BM25 --> RRF["Reciprocal Rank Fusion (RRF 統合)"]
-        Sem --> RRF
-        GraphWalk --> RRF
-        RRF --> Ranked["確信度加重 高精度検索結果"]
-    end
+    F1 & L1 & F2 & L2 --> PR
 ```
 
-### 1. Memory Lifecycle（4層メモリ階層 & 忘却曲線）
-- **4層構造**: `working`（短期作業メモ） $\rightarrow$ `episodic`（議事録・セッション要約） $\rightarrow$ `semantic`（統合仕様・ADR） $\rightarrow$ `procedural`（運用Runbook・手順）。
-- **エビングハウスの忘却曲線**: 放置された知識は時間とともに確信度スコアが指数関数的に減衰（Decay）。カテゴリ別に半減期（ADR: 346日、詳細設計: 69日、バグ/メモ: 14日）を設定。参照や再検証で自動リセット＆強化（Reinforce）。
+### 1. 分散インデックス & 断片チェンジログ（Gitコンフリクト完全排除）
+* **集中ファイルの手動編集廃止**: 各フォルダの `index.md` や全体の `log.md` はスクリプト（`build_indexes.py`, `build_changelog.py`）により自動生成されます。
+* **Fragment ログ方式**: 作業者は `wiki/.changelogs/` に個別の断片 JSON ログを追加するだけであり、マージ時の競合が一切発生しません。
 
-### 2. Confidence Scoring（確信度スコア & 矛盾解決）
-- 各 Concept に 0.0〜1.0 の確信度スコアを付与（ソース数、権威性、人間による監査 `verified`、経過日数）。
-- 矛盾（`contradicts`）が発生した場合、ソースの権威性と新しさを比較して新世代へ安全に置換（Supersession）。
+### 2. コンテンツ（Markdown）と動的メタデータの分離（SQLite キャッシュ）
+* 検索ヒット、閲覧履歴、忘却曲線の再強化（Reinforce）によるアクセス情報は、Git 管理外のローカル SQLite（`wiki/.cache/metrics.db`）に記録されます。
+* これにより、**「検索や閲覧を行うだけで Markdown が書き換わり Git 差分が多発する」問題を完全解決**しています。
 
-### 3. Knowledge Graphs（型付きエンティティ & 型付き関係）
-- `implements`, `depends_on`, `uses`, `contradicts`, `supersedes` などのセマンティックな関係性をフロントマターで定義。
-- 機械可読なグラフデータ（`wiki/graph.json`）および視覚的な Mermaid 図（`wiki/graph.mermaid`）を自動生成し、影響範囲を探索。
+### 3. Memory Lifecycle（4層メモリ階層 & 忘却曲線）
+* **4層構造**: `working`（短期作業メモ） $\rightarrow$ `episodic`（議事録・セッション要約） $\rightarrow$ `semantic`（統合仕様・ADR） $\rightarrow$ `procedural`（運用Runbook・手順）。
+* **エビングハウスの忘却曲線**: 放置された知識は時間経過で確信度スコアが指数関数的に減衰（Decay）。カテゴリ別に半減期（ADR: 346日、詳細設計: 69日、バグ/メモ: 14日）を設定。
 
 ### 4. Hybrid Search（ハイブリッド検索エンジン）
-- ページ数が膨大になっても、**BM25**（キーワード）、**Semantic**（意味類似度）、**Knowledge Graph**（関係性近傍）の 3 つの手法を **Reciprocal Rank Fusion (RRF)** で統合し、鮮度（減衰後スコア）を加味した最高精度の検索結果を提供。
+* **BM25**（キーワード）、**Semantic**（意味類似度）、**Knowledge Graph**（関係性近傍）の 3 手法を **Reciprocal Rank Fusion (RRF)** で統合し、鮮度（減衰後スコア）を加味した最高精度の検索結果を提供。
+
+---
+
+## 👥 複数人協調・コンフリクト完全排除ルール
+
+複数ユーザー・複数エージェントが並行してドキュメントを編纂する際、以下の原則に従います。
+
+### ① 集中ファイル（`index.md`, `log.md`, `graph.*`）の手動編集禁止
+* 各作業者は、自身の担当する Concept ファイル（例: `wiki/04_detailed_designs/api_xxx.md`）と断片ログ（`wiki/.changelogs/`）のみをコミットします。
+* `index.md` や `log.md`、`graph.json` は CI または `python3 scripts/sync_wiki.py` により自動生成されます。
+
+### ② 仕様対立時の両論併記ルール（`contradicts` & ADR First）
+* 異なるチームや機能間で仕様の不一致が発生した場合、**相手のドキュメントを無断で上書き・削除してはなりません**。
+* 一時的に `relations.contradicts: [対象ファイル]` を付与して両論併記とし、`wiki/05_decisions/` に **ADR（アーキテクチャ決定記録）** を起票して合意形成を行います。
+* ADR が確定した段階で、一方を `deprecated` / `superseded_by` に更新します。
+
+### ③ 下書きステータス（`status: draft`）の運用
+* 執筆途中のドキュメントは `status: draft` を設定します。
+* CI（`lint_okf.py`）により、他ドキュメントが `draft` 状態のファイルに対して不正に `depends_on` 等の依存関係を結んでいないかを自動検知・警告します。
 
 ---
 
@@ -80,25 +94,31 @@ llmwiki/
 │   │   ├── 01_core_philosophy.md  # 設計思想・解像度100%保持・機密スクラビング規約
 │   │   ├── 02_okf_frontmatter.md  # OKF v0.2 & v2 Frontmatter 完全スキーマ・脚註規約
 │   │   ├── 03_memory_lifecycle.md # 4層メモリ階層・忘却曲線・矛盾解決規約
-│   │   ├── 04_wiki_operations.md  # 非破壊的更新・インデックス/グラフ即時同期規約
-│   │   └── 05_git_workflow.md     # トピックブランチ・コミット規約・CI要件
+│   │   ├── 04_wiki_operations.md  # 複数人協調・非破壊更新・自動同期オペレーション
+│   │   └── 05_git_workflow.md     # トピックブランチ・コミット規約・CI/CD フロー
 │   └── skills/                    # 【Antigravity Skills】オンデマンド対話型 Runbook
-│       ├── llm-wiki-clean/        # Markdown 不要空欄・Excel空セル削除・構造整形・シークレット除去
-│       ├── llm-wiki-ingest/       # 一次資料取り込み・OKF v0.2 知識化・脚注・初期確信度付与
-│       ├── llm-wiki-lint/         # OKF v0.2 整合性・ゴーストリンク・脚注・グラフ検査
+│       ├── llm-wiki-clean/        # Markdown 不要空欄・Excel空セル削除・シークレット除去
+│       ├── llm-wiki-ingest/       # 一次資料取り込み・OKF v0.2 知識化・脚注付与
+│       ├── llm-wiki-lint/         # OKF v0.2 整合性・ゴーストリンク・重複ID・グラフ検査
 │       ├── llm-wiki-query/        # ハイブリッド検索・Graph Traversal・仕様回答
 │       └── llm-wiki-update/       # 仕様変更・ADR 起票・忘却曲線再強化・世代交代
 ├── .github/
+│   ├── CODEOWNERS                 # ドメイン別レビュー担当者定義
+│   ├── pull_request_template.md   # OKF v0.2 & 複数人協調 PR テンプレート
 │   └── workflows/
-│       └── ci.yml                 # 【GitHub Actions】Push/PR 時に OKF リントとグラフ整合性を自動検証
-├── scripts/                       # 運用スクリプト群
-│   ├── hybrid_search.py           # BM25 + Semantic + Graph + RRF ハイブリッド検索エンジン
-│   ├── memory_decay.py            # 忘却曲線減衰計算・再強化・stale 知識レポート
+│       └── ci.yml                 # 【GitHub Actions】PR 時リント ＆ Merge 時自動同期
+├── scripts/                       # 運用・同期スクリプト群
+│   ├── sync_wiki.py               # 【統合】Index, Changelog, Knowledge Graph 一括自動同期
+│   ├── build_indexes.py           # カテゴリ別 & マスター index.md 自動生成
+│   ├── build_changelog.py         # 分散断片ログから wiki/log.md を自動集約・再生成
 │   ├── build_graph.py             # ナレッジグラフ構築・Mermaid/JSON 出力・矛盾/孤立検査
+│   ├── metrics_db.py              # SQLite 動的メトリクス管理モジュール (wiki/.cache/metrics.db)
+│   ├── hybrid_search.py           # BM25 + Semantic + Graph + RRF ハイブリッド検索エンジン
+│   ├── memory_decay.py            # 忘却曲線減衰計算・再強化・DB連携
 │   ├── consolidate_memory.py      # 4層メモリ階層の昇格・要約・統合ツール
 │   ├── convert_anydoc.py          # anydoc 変換 ＋ ルールベース前処理
 │   ├── table_cleaner.py           # 表の空セル・空列・空行自動削除モジュール
-│   └── lint_okf.py                # OKF v0.2 & LLM Wiki v2 自動バリデータ
+│   └── lint_okf.py                # OKF v0.2 & マルチユーザー整合性自動バリデータ
 ├── raw/                           # 【一次資料保管庫】（人間が受領・配置した原本）
 │   ├── 01_customer_requests/      # 顧客ヒアリングシート、RFP、要望一覧
 │   ├── 02_requirements/           # システム要件定義書、業務フロー図
@@ -107,13 +127,14 @@ llmwiki/
 │   ├── 05_decisions/              # 意思決定の背景資料・比較検討資料
 │   └── 99_others/                 # 参考技術資料、開発ガイドライン、議事録
 └── wiki/                          # 【Google OKF v0.2 準拠 編集済み知識層】
-    ├── index.md                   # 全体マスターインデックス
-    ├── log.md                     # 全体更新履歴 (Changelog)
-    ├── graph.json                 # ナレッジグラフデータ (JSON)
-    ├── graph.mermaid              # ナレッジグラフ可視化 (Mermaid)
-    ├── 01_customer_requests/      # 顧客要望コンセプト群 (index.md 完備)
-    ├── 02_requirements/           # 要件定義コンセプト群 (index.md 完備)
-    ├── 03_basic_designs/          # 概要・基本設計コンセプト群 (index.md 完備)
+    ├── index.md                   # 全体マスターインデックス（自動生成）
+    ├── log.md                     # 全体更新履歴 (Changelog)（自動生成）
+    ├── graph.json                 # ナレッジグラフデータ (JSON)（自動生成）
+    ├── graph.mermaid              # ナレッジグラフ可視化 (Mermaid)（自動生成）
+    ├── .changelogs/               # 分散断片ログ保管ディレクトリ (*.json)
+    ├── 01_customer_requests/      # 顧客要望コンセプト群 (index.md 自動生成)
+    ├── 02_requirements/           # 要件定義コンセプト群 (index.md 自動生成)
+    ├── 03_basic_designs/          # 概要・基本設計コンセプト群 (index.md 自動生成)
     ├── 04_detailed_designs/       # 詳細設計コンセプト群 (DB/API/画面)
     ├── 05_decisions/              # アーキテクチャ決定記録 (ADR)
     └── 99_others/                 # プロジェクト共通用語集 (glossary.md) 等
@@ -122,8 +143,6 @@ llmwiki/
 ---
 
 ## 🤖 Antigravity Rules & ワークフロー統合
-
-Antigravity では、エージェントの行動規約（Rules）と対話型実行手順（Skills）、自動テスト（Workflows）が有機的に連携して動作します。
 
 ```mermaid
 flowchart TD
@@ -134,8 +153,8 @@ flowchart TD
             R1["01_core_philosophy.md<br/>・解像度100%保持<br/>・機密スクラビング"]
             R2["02_okf_frontmatter.md<br/>・OKF v0.2 厳格定義<br/>・脚注 [^id] 必須"]
             R3["03_memory_lifecycle.md<br/>・4層メモリ<br/>・忘却曲線 & 矛盾解決"]
-            R4["04_wiki_operations.md<br/>・非破壊的更新<br/>・index/log/graph 自動同期"]
-            R5["05_git_workflow.md<br/>・ブランチ & コミット規約"]
+            R4["04_wiki_operations.md<br/>・非破壊的更新<br/>・複数人協調 & 自動同期"]
+            R5["05_git_workflow.md<br/>・PR & コミット規約<br/>・CI/CD 自動化"]
         end
         
         subgraph ".agents/skills/ (オンデマンド対話型 Runbook)"
@@ -146,8 +165,8 @@ flowchart TD
             S5["llm-wiki-lint"]
         end
 
-        subgraph ".github/workflows/ (GitHub Actions CI)"
-            CI["ci.yml<br/>・OKF v0.2 自動リント<br/>・ナレッジグラフ整合性検査"]
+        subgraph ".github/workflows/ (GitHub Actions CI/CD)"
+            CI["ci.yml<br/>・PR時: OKF/重複IDリント<br/>・Merge時: sync_wiki 自動コミット"]
         end
 
         AG --> R1 & R2 & R3 & R4 & R5
@@ -161,7 +180,7 @@ flowchart TD
 2. **Google OKF v0.2 Frontmatter 必須**: `wiki/` 配下のすべてのファイルに完全な Frontmatter を付与。
 3. **主張単位の根拠付け（Footnotes `[^id]`）**: 本文中の記述は `sources` の `id` と紐づく脚注記法で裏付けを明記。
 4. **非破壊的更新の原則**: 仕様変更時は過去の記述を削除せず、取り消し線（`~~`）で残すか `supersedes` / `superseded_by` で安全に世代交代。
-5. **ナレッジグラフ・インデックスの即時同期**: 編集後は必ず `index.md`、`wiki/log.md` を更新し、`build_graph.py` でナレッジグラフを再構築。
+5. **複数人協調・自動同期（Decentralized Sync）**: `index.md` や `log.md` の手動編集はコンフリクトの原因となるため禁止。変更ログは `wiki/.changelogs/` に断片保存し、同期は `sync_wiki.py` または CI に委ねる。動的アクセス記録は `metrics.db` で分離管理する。
 
 ---
 
@@ -222,14 +241,12 @@ relations:
 
 ## 🚀 Antigravity Skills の使い方
 
-Antigravity IDE のチャット画面から、自然な指示を出すだけで、AI エージェントが自律的に実行します。
-
 ### 1. 資料の追加・Wiki 化 (`llm-wiki-ingest`)
 一次資料（Excel, PDF, Word, SQL 等）を指定するだけで、不要な空セルや空行を自動クレンジングし、シークレットを除去した上で適切な `memory_tier`、初期確信度、`sources` ＋ 脚注を付与して取り込みます。
 > **プロンプト例:** 「`raw/04_detailed_designs/db_schema.xlsx` を Wiki に追加してください。」
 
 ### 2. 質問・横断検索 (`llm-wiki-query`)
-ハイブリッド検索（BM25 + セマンティック + グラフ近傍）を実行し、減衰後確信度、メモリ階層、Graph Traversal（`implements`, `depends_on` 等）を辿って根拠（Footnotes / Sources）付きで回答します。
+ハイブリッド検索（BM25 + セマンティック + グラフ近傍）を実行し、減衰後確信度、メモリ階層、Graph Traversal（`implements`, `depends_on` 等）を辿って根拠（Footnotes / Sources）付きで回答します。検索ヒットは `metrics.db` に自動記録されます。
 > **プロンプト例:** 「パスワードロックの仕様と、関連するDBテーブル・API定義を教えてください。」
 
 ### 3. 仕様変更・世代交代 (`llm-wiki-update`)
@@ -237,47 +254,47 @@ Antigravity IDE のチャット画面から、自然な指示を出すだけで�
 > **プロンプト例:** 「パスワード失敗時のロック時間を15分から30分に変更してください。」
 
 ### 4. Wiki の整合性検査・修復 (`llm-wiki-lint`)
-OKF v0.2 + v2 適合性、リンク切れ、グラフの矛盾、減衰（stale）ドキュメントを検査・修復します。
+OKF v0.2 + v2 適合性、リンク切れ、重複ID、ドラフト不正依存、グラフの矛盾、減衰（stale）ドキュメントを検査・修復します。
 > **プロンプト例:** 「Wiki 全体の整合性とナレッジグラフをチェックして更新してください。」
 
 ---
 
 ## 🛠️ CLI 支援ツールの使い方
 
-### 1. ハイブリッド検索 (`hybrid_search.py`)
-BM25、セマンティック、グラフ走査を RRF で統合し、鮮度スコアを加味したランキングを出力します。
+### 1. Wiki 全体の一括自動同期 (`sync_wiki.py`)
+インデックス生成、チェンジログ集約、ナレッジグラフ再構築をワンコマンドで実行します。
+```bash
+python3 scripts/sync_wiki.py
+```
+
+### 2. ハイブリッド検索 (`hybrid_search.py`)
+BM25、セマンティック、グラフ走査を RRF で統合し、鮮度スコアを加味したランキングを出力します（検索履歴は `metrics.db` に記録）。
 ```bash
 python3 scripts/hybrid_search.py "ユーザー認証 パスワードロック" --top 5
 ```
 
-### 2. 忘却曲線 & メモリ減衰管理 (`memory_decay.py`)
+### 3. 忘却曲線 & メモリ減衰管理 (`memory_decay.py`)
 ```bash
 # 全 Concept の忘却曲線減衰レポートを表示
 python3 scripts/memory_decay.py wiki/
 
-# フロントマターの current_score を最新の減衰スコアに更新
-python3 scripts/memory_decay.py wiki/ --update
-
-# 特定ドキュメントの忘却曲線をリセット・再強化 (Reinforce)
+# 特定ドキュメントの忘却曲線を再強化 (Reinforce -> metrics.db に保存)
 python3 scripts/memory_decay.py --reinforce wiki/04_detailed_designs/table_users.md
+
+# SQLite に蓄積されたメトリクスを Markdown Frontmatter に確定書き戻し
+python3 scripts/memory_decay.py wiki/ --sync-to-frontmatter
 ```
 
-### 3. ナレッジグラフ生成・可視化・分析 (`build_graph.py`)
+### 4. 分散チェンジログ管理 (`build_changelog.py`)
 ```bash
-# graph.json & graph.mermaid を生成し、孤立ノードや矛盾を検査
-python3 scripts/build_graph.py wiki/
+# 断片ログを手動追加
+python3 scripts/build_changelog.py add "user:alice" "API仕様の追加" "ログインエンドポイントを追加" "JWTトークン検証を追加"
+
+# 全断片ログを wiki/log.md に集約
+python3 scripts/build_changelog.py
 ```
 
-### 4. メモリ階層管理・統合 (`consolidate_memory.py`)
-```bash
-# 4層メモリ階層 (Working / Episodic / Semantic / Procedural) の分布を表示
-python3 scripts/consolidate_memory.py wiki/
-
-# ドキュメントを上位階層に昇格
-python3 scripts/consolidate_memory.py --promote wiki/01_customer_requests/hearing_sheet.md episodic
-```
-
-### 5. OKF v0.2 & v2 整合性バリデータ (`lint_okf.py`)
+### 5. OKF v0.2 & マルチユーザー整合性バリデータ (`lint_okf.py`)
 ```bash
 python3 scripts/lint_okf.py wiki/
 ```
@@ -286,5 +303,13 @@ python3 scripts/lint_okf.py wiki/
 
 ## 🐙 Git & GitHub CI/CD 運用フロー
 
-1. **ブランチ運用**: 新規資料の取り込みや仕様更新はトピックブランチ（例: `feature/ingest-auth-spec`）で作業。
-2. **CI / CD (GitHub Actions)**: Pull Request 時に `.github/workflows/ci.yml` により `python3 scripts/lint_okf.py wiki/` および `python3 scripts/build_graph.py wiki/` が自動実行され、整合性とナレッジグラフの健全性を自動検証・保護します。
+1. **トピックブランチ作成**:
+   - `feature/ingest-<topic>`, `feature/update-<topic>`, `docs/adr-<number>` 等のブランチで作業。
+2. **作業とコミット**:
+   - ドキュメント本体および `wiki/.changelogs/` の断片ログを作成してコミット。
+   - `wiki/log.md` や `index.md` の手動編集は不要（コンフリクト回避）。
+3. **Pull Request & CI 自動検証**:
+   - PR を作成すると、GitHub Actions (`.github/workflows/ci.yml`) により `python3 scripts/lint_okf.py wiki/` が自動実行され、OKF 構文、重複ID、リンク切れ、ドラフト依存がチェックされます。
+   - `CODEOWNERS` に基づき、各ドメインの担当者がレビュー・承認。
+4. **Main マージ & 自動同期コミット**:
+   - PR が `main` にマージされると、GitHub Actions が自動で `python3 scripts/sync_wiki.py` を実行し、最新の `index.md`, `log.md`, `graph.json`, `graph.mermaid` を自動生成してコミット＆プッシュします。

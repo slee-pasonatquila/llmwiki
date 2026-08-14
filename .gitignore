@@ -124,3 +124,10 @@ logs/
 scratch/
 tmp/
 temp/
+
+# Local Caches & Metrics DB (Decentralized Multi-User Cache)
+wiki/.cache/
+.cache/
+*.db
+*.sqlite3
+

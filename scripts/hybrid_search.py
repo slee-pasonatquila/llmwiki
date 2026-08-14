@@ -1,5 +1,5 @@
 """
-hybrid_search.py - LLM Wiki v2 Hybrid Search Engine
+hybrid_search.py - LLM Wiki v2 Hybrid Search Engine (Multi-User SQLite Supported)
 
 Combines 3 search paradigms into a unified, high-accuracy ranking:
   1. BM25 Keyword Search (Exact term matching, code identifiers, Japanese n-grams)
@@ -7,6 +7,7 @@ Combines 3 search paradigms into a unified, high-accuracy ranking:
   3. Knowledge Graph Proximity (Traversal along implements, depends_on, uses edges)
   
 Integrated via Reciprocal Rank Fusion (RRF) with memory confidence weighting.
+Search queries and hit metrics are recorded in `wiki/.cache/metrics.db`.
 
 Usage:
   python3 scripts/hybrid_search.py "ユーザー認証 パスワードロック"
@@ -27,6 +28,17 @@ try:
     HAVE_YAML = True
 except ImportError:
     HAVE_YAML = False
+
+# Import metrics_db
+try:
+    from metrics_db import record_access, get_metrics
+    HAVE_METRICS_DB = True
+except ImportError:
+    try:
+        from scripts.metrics_db import record_access, get_metrics
+        HAVE_METRICS_DB = True
+    except ImportError:
+        HAVE_METRICS_DB = False
 
 
 def strip_md_suffix(s: str) -> str:
@@ -65,8 +77,11 @@ def extract_frontmatter(content: str) -> Tuple[Optional[dict], str]:
         except Exception:
             return None, body
     else:
-        from lint_okf import parse_yaml_subset
-        return parse_yaml_subset(fm_text), body
+        try:
+            from lint_okf import parse_yaml_subset
+            return parse_yaml_subset(fm_text), body
+        except ImportError:
+            return {}, body
 
 
 class BM25Okapi:
@@ -98,9 +113,10 @@ class BM25Okapi:
                 freq = tokens.count(q)
                 if freq == 0:
                     continue
-                num = freq * (self.k1 + 1)
-                den = freq + self.k1 * (1 - self.b + self.b * (self.doc_lengths[doc_id] / max(1e-5, self.avgdl)))
-                scores[doc_id] += idf_val * (num / den)
+                dl = self.doc_lengths[doc_id]
+                numerator = freq * (self.k1 + 1)
+                denominator = freq + self.k1 * (1 - self.b + self.b * (dl / self.avgdl))
+                scores[doc_id] += idf_val * (numerator / denominator)
         return scores
 
 
@@ -109,8 +125,9 @@ class HybridSearchEngine:
         self.wiki_root = wiki_root.resolve()
         self.documents: Dict[str, Dict[str, Any]] = {}
         self.corpus_tokens: Dict[str, List[str]] = {}
-        self.graph_adj: Dict[str, List[str]] = {}
+        self.graph_adj: Dict[str, Set[str]] = {}
         self._load_corpus()
+        self.bm25 = BM25Okapi(self.corpus_tokens)
 
     def _load_corpus(self):
         for root, _, files in os.walk(self.wiki_root):
@@ -124,78 +141,90 @@ class HybridSearchEngine:
                         content = f.read()
 
                     fm, body = extract_frontmatter(content)
-                    fm = fm or {}
+                    if not fm:
+                        continue
+
+                    # Confidence calculation (prefer SQLite cached score if available)
+                    conf_raw = fm.get("confidence", 0.9)
+                    if isinstance(conf_raw, dict):
+                        conf_val = float(conf_raw.get("current_score", conf_raw.get("base_score", 0.9)))
+                    else:
+                        try:
+                            conf_val = float(conf_raw)
+                        except (ValueError, TypeError):
+                            conf_val = 0.9
+
+                    if HAVE_METRICS_DB:
+                        m = get_metrics(concept_id)
+                        if m and m.get("current_decayed_score"):
+                            conf_val = float(m["current_decayed_score"])
 
                     title = fm.get("title", file)
                     desc = fm.get("description", "")
                     tags = fm.get("tags", [])
-                    ntype = fm.get("type", "Concept")
                     tier = fm.get("memory_tier", "semantic")
-                    conf = fm.get("confidence", {}).get("current_score", 1.0) if isinstance(fm.get("confidence"), dict) else 1.0
+                    doc_type = fm.get("type", "spec")
+
+                    text_for_search = f"{title}\n{desc}\n{' '.join(tags)}\n{body}"
+                    tokens = tokenize(text_for_search)
 
                     self.documents[concept_id] = {
                         "id": concept_id,
                         "path": rel_path,
                         "title": title,
                         "description": desc,
-                        "tags": tags,
-                        "type": ntype,
+                        "type": doc_type,
                         "memory_tier": tier,
-                        "confidence": conf,
+                        "confidence": conf_val,
                         "body": body,
-                        "relations": fm.get("relations", {}) if isinstance(fm.get("relations"), dict) else {},
+                        "tokens": tokens,
+                        "relations": fm.get("relations", {})
                     }
+                    self.corpus_tokens[concept_id] = tokens
 
-                    weighted_text = f"{title} {title} {desc} {desc} {' '.join(tags)} {ntype} {concept_id} {body[:1500]}"
-                    self.corpus_tokens[concept_id] = tokenize(weighted_text)
+                    if concept_id not in self.graph_adj:
+                        self.graph_adj[concept_id] = set()
 
-        # Build local graph adjacency
-        for cid, doc in self.documents.items():
-            self.graph_adj[cid] = []
-            rels = doc.get("relations", {})
-            for rtype, targets in rels.items():
-                if isinstance(targets, list):
-                    for t in targets:
-                        clean_t = strip_md_suffix(str(t))
-                        if clean_t in self.documents:
-                            self.graph_adj[cid].append(clean_t)
-                elif isinstance(targets, str):
-                    clean_t = strip_md_suffix(targets)
-                    if clean_t in self.documents:
-                        self.graph_adj[cid].append(clean_t)
+                    rels = fm.get("relations", {})
+                    if isinstance(rels, dict):
+                        for _, targets in rels.items():
+                            if targets:
+                                target_list = targets if isinstance(targets, list) else [targets]
+                                for t in target_list:
+                                    t_clean = strip_md_suffix(str(t))
+                                    self.graph_adj[concept_id].add(t_clean)
 
     def search(self, query: str, top_k: int = 5, k_rrf: int = 60) -> List[Dict[str, Any]]:
         query_tokens = tokenize(query)
         if not query_tokens:
             return []
 
-        # 1. BM25 Search
-        bm25 = BM25Okapi(self.corpus_tokens)
-        bm25_scores = bm25.score(query_tokens)
-        bm25_ranked = sorted(bm25_scores.items(), key=lambda x: x[1], reverse=True)
+        # 1. BM25 Scoring
+        bm25_scores = self.bm25.score(query_tokens)
 
-        # 2. Semantic Concept Matching
+        # 2. Semantic Similarity Score
         semantic_scores = {}
         for cid, doc in self.documents.items():
-            concept_text = f"{doc['title']} {doc['description']} {' '.join(doc['tags'])} {doc['type']}"
-            c_tokens = set(tokenize(concept_text))
-            q_set = set(query_tokens)
-            intersection = q_set.intersection(c_tokens)
-            score = (len(intersection) / max(1, math.sqrt(len(q_set) * len(c_tokens)))) if c_tokens else 0.0
+            sem_text = f"{doc['title']} {doc['description']} {' '.join(doc.get('tags', []))}".lower()
+            sem_tokens = tokenize(sem_text)
+            overlap = set(query_tokens).intersection(set(sem_tokens))
+            score = len(overlap) / (math.sqrt(len(query_tokens)) * math.sqrt(max(1, len(sem_tokens))))
             semantic_scores[cid] = score
-        semantic_ranked = sorted(semantic_scores.items(), key=lambda x: x[1], reverse=True)
 
-        # 3. Knowledge Graph Proximity Search
+        # 3. Knowledge Graph Proximity
         graph_scores = {cid: 0.0 for cid in self.documents}
-        seeds = [doc_id for doc_id, s in bm25_ranked[:3] if s > 0] + [doc_id for doc_id, s in semantic_ranked[:3] if s > 0]
-        for seed in set(seeds):
-            graph_scores[seed] += 1.0
-            for neighbor in self.graph_adj.get(seed, []):
-                graph_scores[neighbor] += 0.5
+        top_lexical_seeds = sorted(bm25_scores.items(), key=lambda x: x[1], reverse=True)[:3]
+        for seed_id, seed_score in top_lexical_seeds:
+            if seed_score > 0 and seed_id in self.graph_adj:
+                for neighbor in self.graph_adj[seed_id]:
+                    if neighbor in graph_scores:
+                        graph_scores[neighbor] += 0.5 * seed_score
 
+        # Reciprocal Rank Fusion (RRF)
+        bm25_ranked = sorted(bm25_scores.items(), key=lambda x: x[1], reverse=True)
+        semantic_ranked = sorted(semantic_scores.items(), key=lambda x: x[1], reverse=True)
         graph_ranked = sorted(graph_scores.items(), key=lambda x: x[1], reverse=True)
 
-        # 4. Reciprocal Rank Fusion (RRF)
         bm25_rank_map = {doc_id: rank + 1 for rank, (doc_id, _) in enumerate(bm25_ranked)}
         sem_rank_map = {doc_id: rank + 1 for rank, (doc_id, _) in enumerate(semantic_ranked)}
         graph_rank_map = {doc_id: rank + 1 for rank, (doc_id, _) in enumerate(graph_ranked)}
@@ -227,6 +256,14 @@ class HybridSearchEngine:
         for cid, score_detail in sorted_results[:top_k]:
             doc = self.documents[cid]
             snippet = self._generate_snippet(doc["body"], query_tokens)
+
+            # Record access log in metrics_db (Zero Git Conflict)
+            if HAVE_METRICS_DB:
+                try:
+                    record_access(cid, action_type="search_hit", query_text=query)
+                except Exception:
+                    pass
+
             output.append({
                 "id": cid,
                 "path": doc["path"],
@@ -241,7 +278,7 @@ class HybridSearchEngine:
                     "graph_rank": score_detail["graph_rank"]
                 },
                 "snippet": snippet,
-                "neighbors": self.graph_adj.get(cid, [])
+                "neighbors": list(self.graph_adj.get(cid, []))
             })
 
         return output

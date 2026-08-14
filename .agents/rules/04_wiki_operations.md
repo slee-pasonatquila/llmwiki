@@ -1,4 +1,4 @@
-# Rule 04: Wiki Compilation & Update Operations
+# Rule 04: Wiki Compilation & Multi-User Operations
 
 ## 1. 非破壊的編集の徹底 (No Destructive Modification)
 仕様変更や廃止が発生した場合、過去の記述を単純削除してはならない。
@@ -10,19 +10,30 @@
   - 新ドキュメントを作成し、`supersedes: [旧ファイルパス]` を指定。
   - 旧ドキュメントの Frontmatter を `status: deprecated`, `superseded_by: 新ファイルパス` に更新。
 
-## 2. 必須の同期更新トリガー (Atomic Update Requirement)
-`wiki/` 配下のファイルを新規作成または更新した場合、エージェントは必ず同一作業内で以下の 3 点を実行しなければならない：
+## 2. 複数人協調・コンフリクト完全排除プロトコル (Decentralized Sync)
+複数作業者・エージェントの並行作業による Git コンフリクトを防ぐため、以下のルールを厳守する：
 
-1. **ディレクトリインデックス (`index.md`) の更新**:
-   - 当該フォルダ（例: `wiki/04_detailed_designs/index.md`）の一覧テーブルに新ドキュメントのリンク、概要、更新日、ステータスを反映。
-2. **全体更新ログ (`wiki/log.md`) の追記**:
-   - `wiki/log.md` の先頭（または最新日付ブロック）に、実施日時、担当エージェント、対象ファイル、変更サマリを追記。
-3. **ナレッジグラフの再構築**:
-   - `python3 scripts/build_graph.py wiki/` を実行し、`wiki/graph.json` および `wiki/graph.mermaid` を最新状態に再生成する。
+1. **集中ファイル（`index.md`, `log.md`, `graph.*`）の手動編集禁止**:
+   - `index.md` や `log.md` はスクリプトにより自動生成されるため、直接手動で書き換えてはならない。
+2. **断片変更ログ (Changelog Fragment) の作成**:
+   - 仕様を追加・更新した際は、`wiki/.changelogs/YYYYMMDD_<author>_<topic>.json` に変更サマリを保存する（または `python3 scripts/build_changelog.py add <author> <action> <details...>` を実行）。
+3. **一括同期ツール (`sync_wiki.py`) の活用**:
+   - ローカル検証時は `python3 scripts/sync_wiki.py` を実行して一括自動生成する。
+   - `main` ブランチマージ時は GitHub Actions CI が自動生成・同期コミットを行う。
 
-## 3. 品質検査 (Linting) の実行
-編集完了後、エージェントは `python3 scripts/lint_okf.py wiki/` を実行し、以下の項目がすべて PASS することを確認する：
+## 3. 複数人並行編集時の競合解決ルール (Concurrency & ADR First)
+1. **仕様対立時の両論併記 (`relations.contradicts`)**:
+   - 別チームや他者との間で仕様が対立している場合、相手のドキュメントを勝手に上書き・削除してはならない。
+   - `relations.contradicts: [対象ファイル]` を付与して両論を併記し、`wiki/05_decisions/` に ADR（アーキテクチャ決定記録）を起票して合意形成を図る。
+2. **下書きドキュメント (`status: draft`) の扱い**:
+   - 執筆中のドキュメントは `status: draft` を付与する。
+   - 他者は原則として `draft` 状態のドキュメントを `depends_on` 等の依存先として指定しない（CI で警告が出力される）。
+
+## 4. 品質検査 (Linting) の実行
+作業完了後、エージェントは `python3 scripts/lint_okf.py wiki/` を実行し、以下の項目がすべて PASS することを確認する：
 - OKF v0.2 Frontmatter の必須フィールド欠落がないか
+- 重複 Concept ID / パスが存在しないか
 - リンク切れ（ゴーストリンク）が存在しないか
-- 孤立ノードや矛盾（`contradicts`）が放置されていないか
+- `status: draft` ドキュメントへの不正な依存がないか
+- `contradicts` に ADR が適切に紐づけられているか
 - `sources` と本文中の脚註 `[^id]` の整合性が取れているか

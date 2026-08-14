@@ -1,0 +1,21 @@
+# LLM Wiki CODEOWNERS
+# 各カテゴリのドメインエキスパート・リードによるレビュー必須化
+
+# 全体デフォルト
+*                   @slee
+
+# アーキテクチャ & 設計決定記録 (ADR)
+wiki/03_basic_designs/  @slee
+wiki/05_decisions/      @slee
+
+# 業務要件 & ドメインロジック
+wiki/01_customer_requests/ @slee
+wiki/02_requirements/      @slee
+
+# 詳細設計 & API / DB
+wiki/04_detailed_designs/  @slee
+
+# CI / スクリプト / ルール定義
+scripts/            @slee
+.agents/            @slee
+.github/            @slee

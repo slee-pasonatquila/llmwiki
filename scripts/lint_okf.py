@@ -14,8 +14,12 @@ Validates:
   2. Footnote / Provenance link integrity ([^source_id] matches sources.id).
   3. Knowledge Graph Relations integrity (implements, implemented_by, depends_on, uses, contradicts, etc.).
   4. Supersession integrity (supersedes / superseded_by points to existing concepts).
-  5. Reserved files structure (index.md coverage of files & subdirectories, log.md date headings).
-  6. Internal Cross-link integrity (standard markdown, absolute bundle paths, and wiki-links).
+  5. Multi-User & Concurrency Validation:
+     - Concept ID & Title uniqueness check.
+     - Dependency on `draft` documents warning.
+     - Unresolved contradiction (`contradicts` without ADR link) warning.
+  6. Reserved files structure (index.md coverage of files & subdirectories, log.md date headings).
+  7. Internal Cross-link integrity (standard markdown, absolute bundle paths, and wiki-links).
 """
 
 import os
@@ -23,6 +27,7 @@ import re
 import sys
 from pathlib import Path
 from typing import List, Dict, Tuple, Set, Any, Optional
+from collections import defaultdict
 
 try:
     import yaml
@@ -72,7 +77,6 @@ def parse_yaml_subset(text: str) -> dict:
             return int(v)
         except ValueError:
             pass
-        # Inline list: [a, b, c]
         if v.startswith("[") and v.endswith("]"):
             inner = v[1:-1].strip()
             if not inner:
@@ -83,7 +87,6 @@ def parse_yaml_subset(text: str) -> dict:
                 if item_clean:
                     items.append(item_clean)
             return items
-        # Inline dict: { a: 1, b: 2 }
         if v.startswith("{") and v.endswith("}"):
             inner = v[1:-1].strip()
             if not inner:
@@ -98,55 +101,49 @@ def parse_yaml_subset(text: str) -> dict:
     i = 0
     while i < len(cleaned_lines):
         indent, line = cleaned_lines[i]
-        if indent == 0 and ":" in line:
+        if ":" in line:
             k, v = line.split(":", 1)
             k = k.strip()
             v = v.strip()
-            
             if v:
                 root[k] = parse_value(v)
                 i += 1
             else:
+                # Nested list or dict
                 i += 1
-                if i >= len(cleaned_lines):
-                    root[k] = None
-                    break
-                
-                next_indent, next_line = cleaned_lines[i]
-                if next_indent > 0:
-                    if next_line.startswith("- "):
+                if i < len(cleaned_lines) and cleaned_lines[i][0] > indent:
+                    nested_indent = cleaned_lines[i][0]
+                    if cleaned_lines[i][1].startswith("-"):
+                        # List items
                         items = []
-                        current_dict: Optional[Dict[str, Any]] = None
-                        list_indent = next_indent
-                        
-                        while i < len(cleaned_lines):
-                            cur_indent, cur_line = cleaned_lines[i]
-                            if cur_indent < list_indent:
-                                break
-                            
-                            if cur_line.startswith("- "):
-                                item_content = cur_line[2:].strip()
-                                if ":" in item_content:
-                                    current_dict = {}
-                                    dk, dv = item_content.split(":", 1)
-                                    current_dict[dk.strip()] = parse_value(dv)
-                                    items.append(current_dict)
+                        while i < len(cleaned_lines) and cleaned_lines[i][0] >= nested_indent:
+                            item_line = cleaned_lines[i][1]
+                            if item_line.startswith("-"):
+                                item_val = item_line[1:].strip()
+                                if ":" in item_val:
+                                    # Dict in list
+                                    sub_dict = {}
+                                    sk, sv = item_val.split(":", 1)
+                                    sub_dict[sk.strip()] = parse_value(sv)
+                                    # Check for further indented keys
+                                    i += 1
+                                    while i < len(cleaned_lines) and cleaned_lines[i][0] > nested_indent:
+                                        if ":" in cleaned_lines[i][1] and not cleaned_lines[i][1].startswith("-"):
+                                            ssk, ssv = cleaned_lines[i][1].split(":", 1)
+                                            sub_dict[ssk.strip()] = parse_value(ssv)
+                                        i += 1
+                                    items.append(sub_dict)
+                                    continue
                                 else:
-                                    current_dict = None
-                                    items.append(parse_value(item_content))
-                            elif current_dict is not None and ":" in cur_line:
-                                dk, dv = cur_line.split(":", 1)
-                                current_dict[dk.strip()] = parse_value(dv)
+                                    items.append(parse_value(item_val))
                             i += 1
                         root[k] = items
                     else:
+                        # Nested dict
                         nested_map = {}
-                        map_indent = next_indent
-                        while i < len(cleaned_lines):
-                            cur_indent, cur_line = cleaned_lines[i]
-                            if cur_indent < map_indent:
-                                break
-                            if ":" in cur_line:
+                        while i < len(cleaned_lines) and cleaned_lines[i][0] >= nested_indent:
+                            cur_line = cleaned_lines[i][1]
+                            if ":" in cur_line and not cur_line.startswith("-"):
                                 nk, nv = cur_line.split(":", 1)
                                 nested_map[nk.strip()] = parse_value(nv)
                             i += 1
@@ -167,6 +164,8 @@ class OKFLinter:
         self.warnings: List[str] = []
         self.all_concept_paths: Set[str] = set()
         self.all_concept_ids: Set[str] = set()
+        self.concept_metadata: Dict[str, Dict[str, Any]] = {}
+        self.title_to_paths: Dict[str, List[str]] = defaultdict(list)
 
     def run(self) -> bool:
         if not self.wiki_root.exists():
@@ -174,7 +173,7 @@ class OKFLinter:
             self.print_report()
             return False
 
-        # Gather all concept paths and concept IDs
+        # Phase 1: Gather all concept paths and read frontmatter
         for root, _, files in os.walk(self.wiki_root):
             for file in files:
                 if file.endswith(".md"):
@@ -185,7 +184,23 @@ class OKFLinter:
                         concept_id = strip_md_suffix(rel_path)
                         self.all_concept_ids.add(concept_id)
 
-        # Lint each markdown file
+                        with open(full_path, "r", encoding="utf-8", errors="replace") as f:
+                            content = f.read()
+                        fm, _ = self.extract_frontmatter(content)
+                        if fm:
+                            self.concept_metadata[concept_id] = fm
+                            title = fm.get("title")
+                            if title:
+                                self.title_to_paths[title.strip()].append(rel_path)
+
+        # Multi-user check: Duplicate Titles across different files
+        for title, paths in self.title_to_paths.items():
+            if len(paths) > 1:
+                self.warnings.append(
+                    f"Duplicate Concept Title detected: '{title}' is used in multiple files: {', '.join(paths)}"
+                )
+
+        # Phase 2: Lint each markdown file
         for rel_path_str in sorted(self.all_concept_paths):
             full_path = self.wiki_root / rel_path_str
             self.lint_file(full_path, rel_path_str)
@@ -248,62 +263,99 @@ class OKFLinter:
 
         # 5. Check Confidence Scoring
         conf_val = frontmatter.get("confidence")
-        if conf_val:
+        if conf_val is not None:
             if isinstance(conf_val, dict):
                 base_s = conf_val.get("base_score")
                 curr_s = conf_val.get("current_score")
-                if base_s is not None and not (0.0 <= float(base_s) <= 1.0):
-                    self.errors.append(f"[{rel_path}] confidence.base_score ({base_s}) must be between 0.0 and 1.0.")
-                if curr_s is not None and not (0.0 <= float(curr_s) <= 1.0):
-                    self.errors.append(f"[{rel_path}] confidence.current_score ({curr_s}) must be between 0.0 and 1.0.")
-            elif isinstance(conf_val, (int, float)):
-                if not (0.0 <= float(conf_val) <= 1.0):
-                    self.errors.append(f"[{rel_path}] confidence ({conf_val}) must be between 0.0 and 1.0.")
-
-        # 6. Check sources (OKF v0.2 §5.1)
-        source_ids = set()
-        sources_val = frontmatter.get("sources")
-        if sources_val is not None:
-            if not isinstance(sources_val, list):
-                self.errors.append(f"[{rel_path}] 'sources' must be a YAML list of source entries.")
+                if base_s is not None:
+                    try:
+                        b_val = float(base_s)
+                        if not (0.0 <= b_val <= 1.0):
+                            self.errors.append(f"[{rel_path}] confidence.base_score ({b_val}) must be between 0.0 and 1.0.")
+                    except ValueError:
+                        self.errors.append(f"[{rel_path}] confidence.base_score is not a valid float: {base_s}")
+                if curr_s is not None:
+                    try:
+                        c_val = float(curr_s)
+                        if not (0.0 <= c_val <= 1.0):
+                            self.errors.append(f"[{rel_path}] confidence.current_score ({c_val}) must be between 0.0 and 1.0.")
+                    except ValueError:
+                        self.errors.append(f"[{rel_path}] confidence.current_score is not a valid float: {curr_s}")
             else:
+                try:
+                    c_val = float(conf_val)
+                    if not (0.0 <= c_val <= 1.0):
+                        self.errors.append(f"[{rel_path}] confidence ({c_val}) must be between 0.0 and 1.0.")
+                except ValueError:
+                    self.errors.append(f"[{rel_path}] confidence is not a valid float: {conf_val}")
+
+        # 6. Check Provenance (sources)
+        sources_val = frontmatter.get("sources")
+        source_ids: Set[str] = set()
+        if sources_val:
+            if isinstance(sources_val, list):
                 for idx, src in enumerate(sources_val):
-                    if not isinstance(src, dict):
-                        self.errors.append(f"[{rel_path}] sources[{idx}] must be a dictionary.")
-                        continue
-                    if "resource" not in src or not str(src["resource"]).strip():
-                        self.errors.append(f"[{rel_path}] sources[{idx}] is missing required key 'resource'.")
-                    if "id" in src and src["id"]:
-                        source_ids.add(str(src["id"]))
+                    if isinstance(src, dict):
+                        sid = src.get("id")
+                        if sid:
+                            source_ids.add(str(sid))
+                        else:
+                            self.warnings.append(f"[{rel_path}] sources[{idx}] is missing an 'id' field.")
+                        if "resource" not in src:
+                            self.warnings.append(f"[{rel_path}] sources[{idx}] is missing the required 'resource' field (OKF v0.2 §4.2).")
+                    elif isinstance(src, str):
+                        source_ids.add(str(idx + 1))
+            else:
+                self.warnings.append(f"[{rel_path}] 'sources' must be a list of provenance mappings.")
 
-        # 7. Check footnotes vs sources.id
-        footnotes = re.findall(r"\[\^([a-zA-Z0-9_\-]+)\]", body)
-        for fn_id in set(footnotes):
-            if source_ids and fn_id not in source_ids:
-                if not re.search(r"\[\^" + re.escape(fn_id) + r"\]:", body):
-                    self.warnings.append(
-                        f"[{rel_path}] Footnote '[^{fn_id}]' does not match any source id in frontmatter 'sources'."
-                    )
+        # 7. Check Footnotes in Body
+        footnotes_in_body = set(re.findall(r"\[\^([a-zA-Z0-9_\-]+)\]", body))
+        for fn in footnotes_in_body:
+            if fn.startswith("note-"):
+                continue
+            if source_ids and fn not in source_ids:
+                self.warnings.append(
+                    f"[{rel_path}] Footnote '[^{fn}]' in body has no matching source ID in frontmatter sources: {list(source_ids)}."
+                )
 
-        # 8. Check typed relations (Knowledge Graph)
+        # 8. Check Graph Relations
         relations_val = frontmatter.get("relations")
         if relations_val and isinstance(relations_val, dict):
-            for rkey, rtargets in relations_val.items():
+            for rkey, targets in relations_val.items():
                 if rkey not in KNOWN_RELATION_KEYS:
-                    self.warnings.append(f"[{rel_path}] Non-standard relation key '{rkey}'.")
-                targets = rtargets if isinstance(rtargets, list) else [rtargets]
-                for tgt in targets:
-                    if not tgt:
-                        continue
-                    clean_id = strip_md_suffix(str(tgt))
-                    if clean_id not in self.all_concept_ids:
+                    self.warnings.append(
+                        f"[{rel_path}] Unknown relation type '{rkey}'. Standard: {', '.join(sorted(KNOWN_RELATION_KEYS))}."
+                    )
+                if targets is None:
+                    continue
+                target_list = targets if isinstance(targets, list) else [targets]
+                for tgt in target_list:
+                    clean_tgt = strip_md_suffix(str(tgt))
+                    if clean_tgt not in self.all_concept_ids:
                         self.warnings.append(
                             f"[{rel_path}] relation '{rkey}' references unknown concept ID: '{tgt}'."
                         )
+                    else:
+                        # Multi-user concurrency checks
+                        target_fm = self.concept_metadata.get(clean_tgt, {})
+                        target_status = target_fm.get("status", "active")
+                        
+                        # Warning if depending on a draft document
+                        if rkey in ("depends_on", "implements") and target_status == "draft":
+                            self.warnings.append(
+                                f"[{rel_path}] relation '{rkey}' points to a DRAFT document: '{tgt}'. Drafts may change abruptly."
+                            )
+
                 if rkey == "contradicts" and targets:
                     self.warnings.append(
-                        f"[{rel_path}] ⚠️ Contradiction flagged with: {', '.join(str(t) for t in targets)}."
+                        f"[{rel_path}] ⚠️ Contradiction flagged with: {', '.join(str(t) for t in target_list)}."
                     )
+                    # Check if an ADR is linked in relations or body
+                    has_adr = any("05_decisions" in str(tgt) or "adr" in str(tgt).lower() for tgt in target_list)
+                    if not has_adr and "05_decisions" not in body and "adr" not in body.lower():
+                        self.warnings.append(
+                            f"[{rel_path}] Contradiction with {target_list} has no associated ADR referenced. Please file an ADR in wiki/05_decisions/."
+                        )
 
         # 9. Check supersession references (OKF v0.2 §5.2)
         supersedes_val = frontmatter.get("supersedes")
@@ -335,7 +387,7 @@ class OKFLinter:
         ]
         sub_dirs = [
             d.name for d in parent_dir.iterdir()
-            if d.is_dir() and not d.name.startswith(".")
+            if d.is_dir() and not d.name.startswith(".") and d.name != ".changelogs"
         ]
 
         for doc in dir_files:

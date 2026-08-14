@@ -1,5 +1,5 @@
 """
-memory_decay.py - LLM Wiki v2 Memory Lifecycle & Forgetting Curve Simulator
+memory_decay.py - LLM Wiki v2 Memory Lifecycle & Forgetting Curve Simulator (Multi-User SQLite Supported)
 
 Calculates time-decayed confidence scores based on Ebbinghaus forgetting curves.
 Formula:
@@ -10,10 +10,14 @@ Decay Rates (lambda):
   - standard  (0.010, half-life ~69 days):  Requirements, DB/API specs, Domain models
   - volatile  (0.050, half-life ~14 days):  Meeting notes, Temporary bugfixes, Working drafts
 
+Multi-User Architecture:
+  - Daily access & reinforcement records are saved to `wiki/.cache/metrics.db` by default to avoid Git conflicts.
+  - Periodic synchronization to Markdown frontmatter can be executed via `--sync-to-frontmatter`.
+
 Usage:
-  python3 scripts/memory_decay.py wiki/                  # View memory decay report
-  python3 scripts/memory_decay.py wiki/ --update         # Update frontmatters with decayed scores
-  python3 scripts/memory_decay.py --reinforce wiki/04_detailed_designs/table_users.md # Reinforce concept
+  python3 scripts/memory_decay.py wiki/                     # View memory decay report (from cache/files)
+  python3 scripts/memory_decay.py --reinforce <file_path>   # Record reinforcement to metrics.db
+  python3 scripts/memory_decay.py wiki/ --sync-to-frontmatter # Flush DB metrics to Markdown Frontmatters
 """
 
 import os
@@ -29,6 +33,17 @@ try:
     HAVE_YAML = True
 except ImportError:
     HAVE_YAML = False
+
+# Import metrics_db
+try:
+    from metrics_db import record_access, get_metrics, update_decay_scores, get_db
+    HAVE_METRICS_DB = True
+except ImportError:
+    try:
+        from scripts.metrics_db import record_access, get_metrics, update_decay_scores, get_db
+        HAVE_METRICS_DB = True
+    except ImportError:
+        HAVE_METRICS_DB = False
 
 
 DECAY_RATES = {
@@ -58,8 +73,11 @@ def extract_frontmatter(content: str) -> Tuple[Optional[dict], str, Optional[str
         except Exception:
             return None, body, fm_text
     else:
-        from lint_okf import parse_yaml_subset
-        return parse_yaml_subset(fm_text), body, fm_text
+        try:
+            from lint_okf import parse_yaml_subset
+            return parse_yaml_subset(fm_text), body, fm_text
+        except ImportError:
+            return {}, body, fm_text
 
 
 class MemoryLifecycleManager:
@@ -83,7 +101,7 @@ class MemoryLifecycleManager:
                 pass
         return datetime.now(timezone.utc)
 
-    def calculate_decay(self, fm: dict, now: Optional[datetime] = None) -> Dict[str, Any]:
+    def calculate_decay(self, fm: dict, now: Optional[datetime] = None, concept_id: str = "") -> Dict[str, Any]:
         now = now or datetime.now(timezone.utc)
         
         conf_data = fm.get("confidence", {})
@@ -98,105 +116,58 @@ class MemoryLifecycleManager:
         if isinstance(decay_key, str) and decay_key.lower() in DECAY_RATES:
             decay_lambda = DECAY_RATES[decay_key.lower()]
         else:
-            tier = fm.get("memory_tier", "semantic")
-            if tier == "working":
-                decay_lambda = DECAY_RATES["volatile"]
-                decay_key = "volatile"
-            elif fm.get("type") in ("Decision (ADR)", "Architecture"):
-                decay_lambda = DECAY_RATES["permanent"]
-                decay_key = "permanent"
-            else:
-                decay_lambda = DECAY_RATES["standard"]
-                decay_key = "standard"
+            decay_lambda = DECAY_RATES["standard"]
 
-        last_dt = fm.get("last_reinforced_at")
-        if not last_dt:
-            gen = fm.get("generated", {})
-            last_dt = gen.get("at") if isinstance(gen, dict) else None
+        # Check metrics_db if available
+        db_metric = None
+        if HAVE_METRICS_DB and concept_id:
+            db_metric = get_metrics(concept_id)
 
-        reinforced_time = self.parse_datetime(last_dt)
-        elapsed_days = max(0.0, (now - reinforced_time).total_seconds() / 86400.0)
+        # Baseline date: verified_at > last_reinforced_at > updated_at > created_at
+        ver_data = fm.get("verified")
+        ver_date = None
+        if isinstance(ver_data, dict):
+            ver_date = ver_data.get("date")
+        elif isinstance(ver_data, str):
+            ver_date = ver_data
 
-        raw_score = base_score * math.exp(-decay_lambda * elapsed_days)
+        if db_metric and db_metric.get("last_verified_at"):
+            ref_date_raw = db_metric.get("last_verified_at")
+        else:
+            ref_date_raw = ver_date or fm.get("last_reinforced_at") or fm.get("updated_at") or fm.get("created_at")
+        ref_dt = self.parse_datetime(ref_date_raw)
 
-        verified = fm.get("verified")
-        boost = 0.05 if (verified and isinstance(verified, dict) and verified.get("by")) else 0.0
+        days_passed = max(0.0, (now - ref_dt).total_seconds() / 86400.0)
 
-        current_score = min(1.0, max(0.0, raw_score + boost))
-        is_stale = current_score < STALE_THRESHOLD
+        decayed_score = base_score * math.exp(-decay_lambda * days_passed)
+        decayed_score = max(0.10, min(1.0, decayed_score))
+
+        acc_count = (db_metric.get("access_count", 0) if db_metric else 0) or int(fm.get("access_count", 0))
 
         return {
             "base_score": round(base_score, 3),
-            "current_score": round(current_score, 3),
+            "current_score": round(decayed_score, 3),
             "decay_rate": decay_key,
             "lambda": decay_lambda,
-            "elapsed_days": round(elapsed_days, 1),
-            "last_reinforced": reinforced_time.isoformat(),
-            "is_stale": is_stale,
-            "has_verification": bool(boost > 0)
+            "days_passed": round(days_passed, 1),
+            "is_stale": decayed_score < STALE_THRESHOLD,
+            "access_count": acc_count
         }
 
-    def generate_report(self) -> List[Dict[str, Any]]:
-        now = datetime.now(timezone.utc)
-        results = []
+    def reinforce(self, file_path: Path, use_db_only: bool = True):
+        rel_path = file_path.relative_to(self.wiki_root).as_posix() if self.wiki_root in file_path.parents else file_path.name
+        concept_id = strip_md_suffix(rel_path)
 
-        for root, _, files in os.walk(self.wiki_root):
-            for file in files:
-                if file.endswith(".md") and file not in ("index.md", "log.md"):
-                    full_path = Path(root) / file
-                    rel_path = full_path.relative_to(self.wiki_root).as_posix()
-
-                    with open(full_path, "r", encoding="utf-8", errors="replace") as f:
-                        content = f.read()
-
-                    fm, _, _ = extract_frontmatter(content)
-                    if not fm:
-                        continue
-
-                    decay_info = self.calculate_decay(fm, now)
-                    decay_info["path"] = rel_path
-                    decay_info["title"] = fm.get("title", file)
-                    decay_info["type"] = fm.get("type", "Concept")
-                    decay_info["tier"] = fm.get("memory_tier", "semantic")
-                    decay_info["status"] = fm.get("status", "active")
-                    results.append(decay_info)
-
-        return results
-
-    def print_report(self):
-        results = self.generate_report()
-        print("\n" + "=" * 72)
-        print("⏳ LLM Wiki v2 Memory Lifecycle & Confidence Decay Report")
-        print("=" * 72)
-        print(f"{'Doc / Title':<34} | {'Tier':<10} | {'Days':<6} | {'Base':<5} | {'Current':<7} | {'Status'}")
-        print("-" * 72)
-
-        stale_docs = []
-        for r in sorted(results, key=lambda x: x["current_score"]):
-            status_tag = "🔴 STALE" if r["is_stale"] else ("🟢 FRESH" if r["current_score"] >= 0.8 else "🟡 DECAYING")
-            title_short = (r["title"][:31] + "...") if len(r["title"]) > 34 else r["title"]
-            print(f"{title_short:<34} | {r['tier']:<10} | {r['elapsed_days']:<6} | {r['base_score']:<5} | {r['current_score']:<7} | {status_tag}")
-            if r["is_stale"]:
-                stale_docs.append(r)
-
-        print("-" * 72)
-        if stale_docs:
-            print(f"\n⚠️  {len(stale_docs)} Concept(s) have decayed below threshold ({STALE_THRESHOLD}):")
-            for sd in stale_docs:
-                print(f"  • [{sd['path']}] {sd['title']} (Score: {sd['current_score']}) -> Recommend Review & Reinforce!")
-        else:
-            print("✅ All Concepts maintain active confidence levels!")
-        print("=" * 72 + "\n")
-
-    def reinforce(self, file_path: Path):
-        if not file_path.exists():
-            print(f"❌ File not found: {file_path}")
+        if HAVE_METRICS_DB and use_db_only:
+            record_access(concept_id, action_type="reinforce", actor="user/agent")
+            print(f"⚡ Reinforced concept in SQLite metrics: {concept_id}")
+            print(f"   • Database: wiki/.cache/metrics.db (Zero Git Conflict)")
             return
 
         with open(file_path, "r", encoding="utf-8") as f:
             content = f.read()
 
-        fm, body, raw_fm = extract_frontmatter(content)
+        fm, body, _ = extract_frontmatter(content)
         if not fm:
             print(f"❌ No frontmatter found in {file_path}")
             return
@@ -224,18 +195,18 @@ class MemoryLifecycleManager:
         with open(file_path, "w", encoding="utf-8") as f:
             f.write(new_content)
 
-        print(f"⚡ Reinforced concept: {file_path.name}")
-        print(f"   • Last Reinforced At: {now_iso}")
-        print(f"   • Access Count: {acc}")
-        print(f"   • Current Confidence: {base_score}")
+        print(f"⚡ Reinforced concept in Markdown: {file_path.name}")
 
-    def update_all_decay(self):
+    def sync_to_frontmatter(self):
         now = datetime.now(timezone.utc)
         count = 0
         for root, _, files in os.walk(self.wiki_root):
             for file in files:
                 if file.endswith(".md") and file not in ("index.md", "log.md"):
                     full_path = Path(root) / file
+                    rel_path = full_path.relative_to(self.wiki_root).as_posix()
+                    cid = strip_md_suffix(rel_path)
+
                     with open(full_path, "r", encoding="utf-8") as f:
                         content = f.read()
 
@@ -243,11 +214,13 @@ class MemoryLifecycleManager:
                     if not fm:
                         continue
 
-                    decay = self.calculate_decay(fm, now)
+                    decay = self.calculate_decay(fm, now, concept_id=cid)
                     if not isinstance(fm.get("confidence"), dict):
                         fm["confidence"] = {}
                     fm["confidence"]["base_score"] = decay["base_score"]
                     fm["confidence"]["current_score"] = decay["current_score"]
+                    if decay["access_count"] > 0:
+                        fm["access_count"] = decay["access_count"]
                     
                     if decay["is_stale"] and fm.get("status") == "active":
                         fm["status"] = "stale"
@@ -257,7 +230,48 @@ class MemoryLifecycleManager:
                         f.write(new_content)
                     count += 1
 
-        print(f"🔄 Updated decayed confidence scores across {count} concept documents.")
+        print(f"🔄 Flushed SQLite metrics to {count} Markdown frontmatters.")
+
+    def print_report(self):
+        print("\n" + "=" * 70)
+        print("🧠 LLM Wiki v2 Memory Decay & Retention Analysis")
+        print("=" * 70)
+        now = datetime.now(timezone.utc)
+        
+        items = []
+        for root, _, files in os.walk(self.wiki_root):
+            for file in files:
+                if file.endswith(".md") and file not in ("index.md", "log.md"):
+                    full_path = Path(root) / file
+                    rel_path = full_path.relative_to(self.wiki_root).as_posix()
+                    cid = strip_md_suffix(rel_path)
+
+                    with open(full_path, "r", encoding="utf-8") as f:
+                        content = f.read()
+
+                    fm, _, _ = extract_frontmatter(content)
+                    if not fm:
+                        continue
+
+                    decay = self.calculate_decay(fm, now, concept_id=cid)
+                    title = fm.get("title", file)
+                    tier = fm.get("memory_tier", "semantic")
+                    items.append((cid, title, tier, decay))
+
+        # Sort by current_score ascending (most decayed first)
+        items.sort(key=lambda x: x[3]["current_score"])
+
+        print(f"{'Concept ID':<35} {'Tier':<10} {'Score':<8} {'Days':<6} {'Status'}")
+        print("-" * 70)
+        for cid, title, tier, d in items:
+            score_str = f"{d['current_score']:.2f}"
+            days_str = f"{d['days_passed']:.0f}d"
+            status_str = "⚠️ STALE" if d["is_stale"] else "✅ Healthy"
+            print(f"{cid:<35} {tier:<10} {score_str:<8} {days_str:<6} {status_str}")
+
+        stale_count = sum(1 for _, _, _, d in items if d["is_stale"])
+        print("-" * 70)
+        print(f"Summary: {len(items)} concepts analyzed. {stale_count} stale concept(s) detected.\n")
 
     def dump_frontmatter(self, fm: dict, body: str) -> str:
         if HAVE_YAML:
@@ -302,13 +316,15 @@ if __name__ == "__main__":
         idx = args.index("--reinforce")
         if idx + 1 < len(args):
             mgr = MemoryLifecycleManager(wiki_dir)
-            mgr.reinforce(Path(args[idx + 1]))
+            target_path = Path(args[idx + 1])
+            use_direct_md = "--force-markdown" in args
+            mgr.reinforce(target_path, use_db_only=not use_direct_md)
         else:
-            print("Usage: python3 scripts/memory_decay.py --reinforce <file_path>")
-    elif "--update" in args:
+            print("Usage: python3 scripts/memory_decay.py --reinforce <file_path> [--force-markdown]")
+    elif "--sync-to-frontmatter" in args or "--update" in args:
         target = Path(args[0]) if args and not args[0].startswith("--") else wiki_dir
         mgr = MemoryLifecycleManager(target)
-        mgr.update_all_decay()
+        mgr.sync_to_frontmatter()
         mgr.print_report()
     else:
         target = Path(args[0]) if args and not args[0].startswith("--") else wiki_dir
