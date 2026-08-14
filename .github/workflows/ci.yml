@@ -1,0 +1,45 @@
+name: LLM Wiki CI
+
+on:
+  push:
+    branches: [ main ]
+    paths:
+      - 'wiki/**'
+      - 'scripts/**'
+      - '.agents/**'
+  pull_request:
+    branches: [ main ]
+    paths:
+      - 'wiki/**'
+      - 'scripts/**'
+      - '.agents/**'
+
+jobs:
+  validate-wiki:
+    name: Validate OKF v0.2 & Knowledge Graph
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Set up Python 3.11
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+
+      - name: Run OKF v0.2 & LLM Wiki v2 Linter
+        run: |
+          python3 scripts/lint_okf.py wiki/
+
+      - name: Build & Validate Knowledge Graph
+        run: |
+          python3 scripts/build_graph.py wiki/
+
+      - name: Check for Uncommitted Changes
+        run: |
+          git status --porcelain
+          if [ -n "$(git status --porcelain)" ]; then
+            echo "::error::Wiki artifacts (graph.json, graph.mermaid, etc.) are out of date. Please run 'python3 scripts/build_graph.py wiki/' and commit the changes."
+            exit 1
+          fi
