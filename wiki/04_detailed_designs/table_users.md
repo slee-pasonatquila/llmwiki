@@ -3,16 +3,33 @@ type: Database Table
 title: Users テーブル定義
 description: PostgreSQLにおけるユーザーマスタ、認証情報、権限ロール管理テーブルの物理設計
 tags: [database, table, schema, postgres, users, auth]
-timestamp: 2026-08-14T15:30:00Z
-resource: raw/04_detailed_designs/db_schema_v1.2.sql
-sheet: t_users
-status: Approved
+status: active
+
+generated:
+  by: agent:antigravity/gemini-3.7-flash
+  at: 2026-08-14T15:30:00Z
+
+verified:
+  by: human:slee
+  at: 2026-08-14T16:00:00Z
+  method: manual_audit
+
+sources:
+  - id: db-schema-v1-2
+    resource: raw/04_detailed_designs/db_schema_v1.2.sql
+    title: データベース定義書 (SQL)
+    author: human:dba
+    last_modified: 2026-08-14
+
+relations:
+  implements: [02_requirements/req_user_management]
+  depends_on: [03_basic_designs/arch_auth_system]
 ---
 
 # Users テーブル定義 (`users`)
 
 ## 1. テーブル概要
-本テーブルは、システムの登録ユーザー基本情報、認証用ハッシュ、アカウントロック状態を保持する。
+本テーブルは、システムの登録ユーザー基本情報、認証用ハッシュ、アカウントロック状態を保持する[^db-schema-v1-2]。
 
 ## 2. カラム物理定義一覧
 
@@ -29,9 +46,9 @@ status: Approved
 | 更新日時 | `updated_at` | TIMESTAMP WITH TIME ZONE | NO | `CURRENT_TIMESTAMP` | レコード最終更新日時 |
 
 ## 3. インデックス定義
-* `pk_users`: PRIMARY KEY (`id`)
-* `uk_users_email`: UNIQUE (`email`)
-* `idx_users_locked`: INDEX (`locked_until`) WHERE `locked_until IS NOT NULL`
+* `pk_users`: PRIMARY KEY (`id`)[^db-schema-v1-2]
+* `uk_users_email`: UNIQUE (`email`)[^db-schema-v1-2]
+* `idx_users_locked`: INDEX (`locked_until`) WHERE `locked_until IS NOT NULL`[^db-schema-v1-2]
 
 ## 4. DDL スクリプト
 ```sql
@@ -53,5 +70,4 @@ CREATE TABLE users (
 * 概要設計: [認証基盤アーキテクチャ](../03_basic_designs/arch_auth_system.md)
 * API 仕様: [ログイン API 仕様](api_auth_login.md)
 
-# Citations
-[1] [データベース定義書 (SQL)](raw/04_detailed_designs/db_schema_v1.2.sql)
+[^db-schema-v1-2]: raw/04_detailed_designs/db_schema_v1.2.sql (データベース定義書 SQL)

@@ -3,17 +3,35 @@ type: API Endpoint
 title: ログイン API 仕様 (POST /api/v1/auth/login)
 description: ユーザー認証を実行し、アクセストークンとリフレッシュトークンを発行するエンドポイント仕様
 tags: [api, auth, endpoint, rest, jwt]
-timestamp: 2026-08-14T15:30:00Z
-resource: raw/04_detailed_designs/api_spec_auth.yaml
-status: Approved
+status: active
+
+generated:
+  by: agent:antigravity/gemini-3.7-flash
+  at: 2026-08-14T15:30:00Z
+
+verified:
+  by: human:slee
+  at: 2026-08-14T16:00:00Z
+  method: manual_audit
+
+sources:
+  - id: api-spec-auth-v1
+    resource: raw/04_detailed_designs/api_spec_auth.yaml
+    title: OpenAPI 認証定義書 (YAML)
+    author: human:api_designer
+    last_modified: 2026-08-14
+
+relations:
+  implements: [02_requirements/req_user_management]
+  depends_on: [03_basic_designs/arch_auth_system, 04_detailed_designs/table_users]
 ---
 
 # ログイン API 仕様 (`POST /api/v1/auth/login`)
 
 ## 1. エンドポイント概要
-* **URL**: `/api/v1/auth/login`
-* **Method**: `POST`
-* **認証**: 不要 (Public)
+* **URL**: `/api/v1/auth/login`[^api-spec-auth-v1]
+* **Method**: `POST`[^api-spec-auth-v1]
+* **認証**: 不要 (Public)[^api-spec-auth-v1]
 * **概要**: メールアドレスとパスワードによる認証を行い、JWT アクセストークンを返却する。
 
 ## 2. リクエスト仕様
@@ -69,5 +87,4 @@ status: Approved
 * 概要設計: [認証基盤アーキテクチャ](../03_basic_designs/arch_auth_system.md)
 * DB 設計: [Users テーブル定義](table_users.md)
 
-# Citations
-[1] [OpenAPI 認証定義書 (YAML)](raw/04_detailed_designs/api_spec_auth.yaml)
+[^api-spec-auth-v1]: raw/04_detailed_designs/api_spec_auth.yaml (OpenAPI 認証定義書 YAML)

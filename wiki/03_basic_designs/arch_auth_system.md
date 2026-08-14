@@ -3,15 +3,33 @@ type: Architecture
 title: 認証・認可基盤アーキテクチャ
 description: JWTステートレス認証、リフレッシュトークンローテーション、およびAPIゲートウェイでの認可検証アーキテクチャ
 tags: [architecture, auth, jwt, security, api-gateway]
-timestamp: 2026-08-14T15:30:00Z
-resource: raw/03_basic_designs/architecture_overview.md
-status: Approved
+status: active
+
+generated:
+  by: agent:antigravity/gemini-3.7-flash
+  at: 2026-08-14T15:30:00Z
+
+verified:
+  by: human:slee
+  at: 2026-08-14T16:00:00Z
+  method: manual_audit
+
+sources:
+  - id: arch-overview-v2
+    resource: raw/03_basic_designs/architecture_overview.md
+    title: システム基本設計書 第2版
+    author: human:architect
+    last_modified: 2026-08-14
+
+relations:
+  implements: [02_requirements/req_user_management]
+  implemented_by: [04_detailed_designs/table_users, 04_detailed_designs/api_auth_login]
 ---
 
 # 認証・認可基盤アーキテクチャ
 
 ## 1. アーキテクチャ概要
-要件定義 [REQ-USER-01](../02_requirements/req_user_management.md) に基づき、スケーラビリティと耐障害性を確保するため、セッションステートレスな JWT 方式を採用する。
+要件定義 [REQ-USER-01](../02_requirements/req_user_management.md) に基づき、スケーラビリティと耐障害性を確保するため、セッションステートレスな JWT 方式を採用する[^arch-overview-v2]。
 
 ```mermaid
 sequenceDiagram
@@ -34,12 +52,12 @@ sequenceDiagram
 ```
 
 ## 2. トークン仕様
-1. **Access Token**:
+1. **Access Token**[^arch-overview-v2]:
    - 形式: JWT (JSON Web Token)
    - 署名アルゴリズム: RS256 (非対称暗号)
    - ペイロード: `sub (user_id)`, `role`, `email`, `exp`, `iat`
    - 有効期間: 15 分
-2. **Refresh Token**:
+2. **Refresh Token**[^arch-overview-v2]:
    - 形式: ランダム暗号文字列 (Opaque Token)
    - 保存先: Redis (ホワイトリスト管理) + クライアント側 Secure HttpOnly Cookie
    - 有効期間: 7 日 (ローテーション方式)
@@ -50,5 +68,4 @@ sequenceDiagram
 * 詳細設計: [ログイン API 仕様](../04_detailed_designs/api_auth_login.md)
 * 意思決定: [ADR-001: JWT によるステートレス認証の採用](../05_decisions/adr_001_jwt_auth.md)
 
-# Citations
-[1] [システム基本設計書 第2版](raw/03_basic_designs/architecture_overview.md)
+[^arch-overview-v2]: raw/03_basic_designs/architecture_overview.md (システム基本設計書 第2版)

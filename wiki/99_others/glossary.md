@@ -3,13 +3,28 @@ type: Glossary
 title: プロジェクト共通用語集 (Glossary)
 description: 本プロジェクトで使用される業務用語、システム略称、ロール定義、ドメイン概念の辞書
 tags: [glossary, domain, terms, definition]
-timestamp: 2026-08-14T15:30:00Z
-status: Approved
+status: active
+
+generated:
+  by: agent:antigravity/gemini-3.7-flash
+  at: 2026-08-14T15:30:00Z
+
+verified:
+  by: human:slee
+  at: 2026-08-14T16:00:00Z
+  method: manual_audit
+
+sources:
+  - id: dev-guidelines-v1
+    resource: raw/99_others/dev_guidelines.md
+    title: システム開発ガイドライン 2026
+    author: human:architect
+    last_modified: 2026-08-14
 ---
 
 # プロジェクト共通用語集 (Glossary)
 
-本ドキュメントは、プロジェクト関係者および AI エージェントが共通の認識を持ち、用語の揺らぎやハルシネーションを防ぐための辞書です。
+本ドキュメントは、プロジェクト関係者および AI エージェントが共通の認識を持ち、用語の揺らぎやハルシネーションを防ぐための辞書です[^dev-guidelines-v1]。
 
 ---
 
@@ -38,5 +53,4 @@ status: Approved
 | **ADR** | Architecture Decision Record | 設計上の重要な決定理由、代替案との比較、結果を短く記録した文書。 |
 | **LLM Wiki** | Large Language Model Wiki | AI エージェントが自律的に編集・保守・検索する、Git 管理された構造化知識ベース。 |
 
-# Citations
-[1] [システム開発ガイドライン 2026](raw/99_others/dev_guidelines.md)
+[^dev-guidelines-v1]: raw/99_others/dev_guidelines.md (システム開発ガイドライン 2026)
