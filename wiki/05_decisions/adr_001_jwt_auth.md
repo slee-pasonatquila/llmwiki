@@ -5,6 +5,22 @@ description: マイクロサービス化および水平スケーリングを見�
 tags: [adr, decision, architecture, auth, jwt]
 status: active
 
+# Memory Lifecycle
+memory_tier: semantic
+decay_rate: permanent
+last_reinforced_at: 2026-08-14T16:00:00Z
+access_count: 7
+
+# Confidence Scoring
+confidence:
+  base_score: 0.98
+  current_score: 0.98
+  factors:
+    source_count: 1
+    authority: high
+    human_verified: true
+    has_contradictions: false
+
 generated:
   by: agent:antigravity/gemini-3.7-flash
   at: 2026-08-14T15:30:00Z

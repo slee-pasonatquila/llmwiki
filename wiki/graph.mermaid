@@ -1,0 +1,61 @@
+```mermaid
+flowchart TD
+  %% LLM Wiki v2 Knowledge Graph
+  classDef customer fill:#FFEAA7,stroke:#D6A2E8,stroke-width:2px;
+  classDef requirement fill:#DFF9FB,stroke:#7ED6DF,stroke-width:2px;
+  classDef basic fill:#E8F8F5,stroke:#48DBFB,stroke-width:2px;
+  classDef detailed fill:#FADBD8,stroke:#FF7675,stroke-width:2px;
+  classDef decision fill:#D5F5E3,stroke:#2ECC71,stroke-width:2px;
+  classDef stale fill:#F5EEF8,stroke:#BDC581,stroke-width:2px,stroke-dasharray: 5 5;
+  classDef deprecated fill:#E5E8E8,stroke:#95A5A6,stroke-width:1px,opacity:0.6;
+
+  03_basic_designs_arch_auth_system["認証・認可基盤アーキテクチャ<br/><i>[Architecture | semantic]</i>"]
+  class 03_basic_designs_arch_auth_system basic;
+  04_detailed_designs_table_users["Users テーブル定義<br/><i>[Database Table | semantic]</i>"]
+  class 04_detailed_designs_table_users detailed;
+  04_detailed_designs_api_auth_login["ログイン API 仕様 (POST /api/v1/auth/login)<br/><i>[API Endpoint | semantic]</i>"]
+  class 04_detailed_designs_api_auth_login detailed;
+  02_requirements_req_user_management["ユーザー管理・認証機能要件 (REQ-USER-01)<br/><i>[Requirement | semantic]</i>"]
+  class 02_requirements_req_user_management requirement;
+  01_customer_requests_cr_user_authentication["ユーザー認証・権限管理の顧客要望<br/><i>[Customer Request | episodic]</i>"]
+  class 01_customer_requests_cr_user_authentication customer;
+  05_decisions_adr_001_jwt_auth["ADR-001: セッション管理における JWT ステートレス認証の採用<br/><i>[Decision (ADR) | semantic]</i>"]
+  class 05_decisions_adr_001_jwt_auth decision;
+  99_others_glossary["プロジェクト共通用語集 (Glossary)<br/><i>[Glossary | procedural]</i>"]
+
+  03_basic_designs_arch_auth_system -->|implements| 02_requirements_req_user_management
+  03_basic_designs_arch_auth_system -->|implemented_by| 04_detailed_designs_table_users
+  03_basic_designs_arch_auth_system -->|implemented_by| 04_detailed_designs_api_auth_login
+  03_basic_designs_arch_auth_system -.->|references| 02_requirements_req_user_management
+  03_basic_designs_arch_auth_system -.->|references| 04_detailed_designs_table_users
+  03_basic_designs_arch_auth_system -.->|references| 04_detailed_designs_api_auth_login
+  03_basic_designs_arch_auth_system -.->|references| 05_decisions_adr_001_jwt_auth
+  04_detailed_designs_table_users -->|implements| 02_requirements_req_user_management
+  04_detailed_designs_table_users -->|depends_on| 03_basic_designs_arch_auth_system
+  04_detailed_designs_table_users -.->|references| 02_requirements_req_user_management
+  04_detailed_designs_table_users -.->|references| 03_basic_designs_arch_auth_system
+  04_detailed_designs_table_users -.->|references| 04_detailed_designs_api_auth_login
+  04_detailed_designs_api_auth_login -->|implements| 02_requirements_req_user_management
+  04_detailed_designs_api_auth_login -->|depends_on| 03_basic_designs_arch_auth_system
+  04_detailed_designs_api_auth_login -->|depends_on| 04_detailed_designs_table_users
+  04_detailed_designs_api_auth_login -.->|references| 02_requirements_req_user_management
+  04_detailed_designs_api_auth_login -.->|references| 03_basic_designs_arch_auth_system
+  04_detailed_designs_api_auth_login -.->|references| 04_detailed_designs_table_users
+  02_requirements_req_user_management -->|implements| 01_customer_requests_cr_user_authentication
+  02_requirements_req_user_management -->|implemented_by| 04_detailed_designs_table_users
+  02_requirements_req_user_management -->|implemented_by| 04_detailed_designs_api_auth_login
+  02_requirements_req_user_management -->|depends_on| 03_basic_designs_arch_auth_system
+  02_requirements_req_user_management -.->|references| 01_customer_requests_cr_user_authentication
+  02_requirements_req_user_management -.->|references| 03_basic_designs_arch_auth_system
+  02_requirements_req_user_management -.->|references| 04_detailed_designs_table_users
+  02_requirements_req_user_management -.->|references| 04_detailed_designs_api_auth_login
+  02_requirements_req_user_management -.->|references| 05_decisions_adr_001_jwt_auth
+  01_customer_requests_cr_user_authentication -->|implemented_by| 02_requirements_req_user_management
+  01_customer_requests_cr_user_authentication -.->|references| 02_requirements_req_user_management
+  01_customer_requests_cr_user_authentication -.->|references| 03_basic_designs_arch_auth_system
+  05_decisions_adr_001_jwt_auth -->|implements| 02_requirements_req_user_management
+  05_decisions_adr_001_jwt_auth -->|implemented_by| 03_basic_designs_arch_auth_system
+  05_decisions_adr_001_jwt_auth -.->|references| 02_requirements_req_user_management
+  05_decisions_adr_001_jwt_auth -.->|references| 03_basic_designs_arch_auth_system
+  05_decisions_adr_001_jwt_auth -.->|references| 04_detailed_designs_api_auth_login
+```

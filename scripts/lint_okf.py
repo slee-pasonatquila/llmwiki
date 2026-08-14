@@ -1,17 +1,21 @@
 """
-lint_okf.py - Google OKF (Open Knowledge Format v0.2) Linter & Validator
+lint_okf.py - Google OKF (Open Knowledge Format v0.2) & LLM Wiki v2 Linter & Validator
 
 Validates:
-  1. YAML Frontmatter presence & required/recommended OKF v0.2 keys:
-     - `type:` (Required)
-     - `title:`, `description:` (Recommended)
-     - `status:` (Optional, must be draft|active|deprecated|tombstone)
+  1. YAML Frontmatter presence & OKF v0.2 / LLM Wiki v2 schema:
+     - `type:` (Required OKF entity type)
+     - `title:`, `description:` (Recommended metadata)
+     - `status:` (draft | active | stale | deprecated | tombstone)
+     - `memory_tier:` (working | episodic | semantic | procedural)
+     - `decay_rate:` (permanent | standard | volatile)
+     - `confidence:` (base_score, current_score between 0.0 and 1.0)
      - `generated:`, `verified:` (Structured actor attribution)
-     - `sources:` (Structured list with required 'resource')
+     - `sources:` (Structured provenance list with required 'resource')
   2. Footnote / Provenance link integrity ([^source_id] matches sources.id).
-  3. Supersession integrity (supersedes / superseded_by points to existing concepts).
-  4. Reserved files structure (index.md coverage of files & subdirectories, log.md date headings).
-  5. Internal Cross-link integrity (standard markdown, absolute bundle paths, and wiki-links).
+  3. Knowledge Graph Relations integrity (implements, implemented_by, depends_on, uses, contradicts, etc.).
+  4. Supersession integrity (supersedes / superseded_by points to existing concepts).
+  5. Reserved files structure (index.md coverage of files & subdirectories, log.md date headings).
+  6. Internal Cross-link integrity (standard markdown, absolute bundle paths, and wiki-links).
 """
 
 import os
@@ -26,7 +30,19 @@ try:
 except ImportError:
     HAVE_YAML = False
 
-VALID_STATUSES = {"draft", "active", "deprecated", "tombstone"}
+VALID_STATUSES = {"draft", "active", "stale", "deprecated", "tombstone"}
+VALID_MEMORY_TIERS = {"working", "episodic", "semantic", "procedural"}
+VALID_DECAY_RATES = {"permanent", "standard", "volatile"}
+KNOWN_RELATION_KEYS = {
+    "implements", "implemented_by", "depends_on", "uses", "caused_by",
+    "contradicts", "supersedes", "superseded_by", "fixes", "tested_by",
+    "part_of", "references"
+}
+
+
+def strip_md_suffix(s: str) -> str:
+    s = s.strip()
+    return s[:-3] if s.endswith(".md") else s
 
 
 def parse_yaml_subset(text: str) -> dict:
@@ -34,8 +50,6 @@ def parse_yaml_subset(text: str) -> dict:
     lines = text.splitlines()
     root: Dict[str, Any] = {}
     
-    # We will build a structured hierarchy by tracking indent levels
-    # Tokenize lines into (indent, content)
     cleaned_lines = []
     for line in lines:
         stripped = line.strip()
@@ -52,6 +66,12 @@ def parse_yaml_subset(text: str) -> dict:
             return True
         if v.lower() == "false":
             return False
+        try:
+            if "." in v:
+                return float(v)
+            return int(v)
+        except ValueError:
+            pass
         # Inline list: [a, b, c]
         if v.startswith("[") and v.endswith("]"):
             inner = v[1:-1].strip()
@@ -69,12 +89,10 @@ def parse_yaml_subset(text: str) -> dict:
             if not inner:
                 return {}
             res = {}
-            # Match key: value pairs
             pairs = re.findall(r"([a-zA-Z0-9_\-]+)\s*:\s*([^,}]+)", inner)
             for pk, pv in pairs:
                 res[pk.strip()] = parse_value(pv)
             return res
-        # String without quotes
         return v.strip("'\"")
 
     i = 0
@@ -89,7 +107,6 @@ def parse_yaml_subset(text: str) -> dict:
                 root[k] = parse_value(v)
                 i += 1
             else:
-                # Lookahead to see if it's a block mapping or list
                 i += 1
                 if i >= len(cleaned_lines):
                     root[k] = None
@@ -98,7 +115,6 @@ def parse_yaml_subset(text: str) -> dict:
                 next_indent, next_line = cleaned_lines[i]
                 if next_indent > 0:
                     if next_line.startswith("- "):
-                        # It's a list
                         items = []
                         current_dict: Optional[Dict[str, Any]] = None
                         list_indent = next_indent
@@ -111,7 +127,6 @@ def parse_yaml_subset(text: str) -> dict:
                             if cur_line.startswith("- "):
                                 item_content = cur_line[2:].strip()
                                 if ":" in item_content:
-                                    # Dict in list
                                     current_dict = {}
                                     dk, dv = item_content.split(":", 1)
                                     current_dict[dk.strip()] = parse_value(dv)
@@ -125,7 +140,6 @@ def parse_yaml_subset(text: str) -> dict:
                             i += 1
                         root[k] = items
                     else:
-                        # It's a nested mapping
                         nested_map = {}
                         map_indent = next_indent
                         while i < len(cleaned_lines):
@@ -168,7 +182,7 @@ class OKFLinter:
                     rel_path = full_path.relative_to(self.wiki_root).as_posix()
                     self.all_concept_paths.add(rel_path)
                     if file not in ("index.md", "log.md"):
-                        concept_id = rel_path[:-3] if rel_path.endswith(".md") else rel_path
+                        concept_id = strip_md_suffix(rel_path)
                         self.all_concept_ids.add(concept_id)
 
         # Lint each markdown file
@@ -193,7 +207,6 @@ class OKFLinter:
             self.lint_log_file(full_path, rel_path, content)
             return
 
-        # It's a regular Concept document
         self.lint_concept_document(full_path, rel_path, content)
 
     def lint_concept_document(self, full_path: Path, rel_path: str, content: str):
@@ -214,14 +227,40 @@ class OKFLinter:
         if "description" not in frontmatter:
             self.warnings.append(f"[{rel_path}] Recommended frontmatter key 'description' is missing.")
 
-        # 4. Check status field if present
+        # 4. Check status & memory tier
         status_val = frontmatter.get("status")
         if status_val and str(status_val).lower() not in VALID_STATUSES:
             self.warnings.append(
-                f"[{rel_path}] Non-standard status '{status_val}'. Recommended values are: {', '.join(sorted(VALID_STATUSES))}."
+                f"[{rel_path}] Non-standard status '{status_val}'. Valid values: {', '.join(sorted(VALID_STATUSES))}."
             )
 
-        # 5. Check sources (OKF v0.2 §5.1)
+        tier_val = frontmatter.get("memory_tier")
+        if tier_val and str(tier_val).lower() not in VALID_MEMORY_TIERS:
+            self.warnings.append(
+                f"[{rel_path}] Non-standard memory_tier '{tier_val}'. Valid tiers: {', '.join(sorted(VALID_MEMORY_TIERS))}."
+            )
+
+        decay_val = frontmatter.get("decay_rate")
+        if decay_val and str(decay_val).lower() not in VALID_DECAY_RATES:
+            self.warnings.append(
+                f"[{rel_path}] Non-standard decay_rate '{decay_val}'. Valid values: {', '.join(sorted(VALID_DECAY_RATES))}."
+            )
+
+        # 5. Check Confidence Scoring
+        conf_val = frontmatter.get("confidence")
+        if conf_val:
+            if isinstance(conf_val, dict):
+                base_s = conf_val.get("base_score")
+                curr_s = conf_val.get("current_score")
+                if base_s is not None and not (0.0 <= float(base_s) <= 1.0):
+                    self.errors.append(f"[{rel_path}] confidence.base_score ({base_s}) must be between 0.0 and 1.0.")
+                if curr_s is not None and not (0.0 <= float(curr_s) <= 1.0):
+                    self.errors.append(f"[{rel_path}] confidence.current_score ({curr_s}) must be between 0.0 and 1.0.")
+            elif isinstance(conf_val, (int, float)):
+                if not (0.0 <= float(conf_val) <= 1.0):
+                    self.errors.append(f"[{rel_path}] confidence ({conf_val}) must be between 0.0 and 1.0.")
+
+        # 6. Check sources (OKF v0.2 §5.1)
         source_ids = set()
         sources_val = frontmatter.get("sources")
         if sources_val is not None:
@@ -237,7 +276,7 @@ class OKFLinter:
                     if "id" in src and src["id"]:
                         source_ids.add(str(src["id"]))
 
-        # 6. Check footnotes vs sources.id
+        # 7. Check footnotes vs sources.id
         footnotes = re.findall(r"\[\^([a-zA-Z0-9_\-]+)\]", body)
         for fn_id in set(footnotes):
             if source_ids and fn_id not in source_ids:
@@ -246,12 +285,32 @@ class OKFLinter:
                         f"[{rel_path}] Footnote '[^{fn_id}]' does not match any source id in frontmatter 'sources'."
                     )
 
-        # 7. Check supersession references (OKF v0.2 §5.2)
+        # 8. Check typed relations (Knowledge Graph)
+        relations_val = frontmatter.get("relations")
+        if relations_val and isinstance(relations_val, dict):
+            for rkey, rtargets in relations_val.items():
+                if rkey not in KNOWN_RELATION_KEYS:
+                    self.warnings.append(f"[{rel_path}] Non-standard relation key '{rkey}'.")
+                targets = rtargets if isinstance(rtargets, list) else [rtargets]
+                for tgt in targets:
+                    if not tgt:
+                        continue
+                    clean_id = strip_md_suffix(str(tgt))
+                    if clean_id not in self.all_concept_ids:
+                        self.warnings.append(
+                            f"[{rel_path}] relation '{rkey}' references unknown concept ID: '{tgt}'."
+                        )
+                if rkey == "contradicts" and targets:
+                    self.warnings.append(
+                        f"[{rel_path}] ⚠️ Contradiction flagged with: {', '.join(str(t) for t in targets)}."
+                    )
+
+        # 9. Check supersession references (OKF v0.2 §5.2)
         supersedes_val = frontmatter.get("supersedes")
         if supersedes_val:
             items = supersedes_val if isinstance(supersedes_val, list) else [supersedes_val]
             for target_id in items:
-                clean_id = str(target_id).rstrip(".md")
+                clean_id = strip_md_suffix(str(target_id))
                 if clean_id not in self.all_concept_ids:
                     self.warnings.append(
                         f"[{rel_path}] 'supersedes' references unknown concept ID: '{target_id}'."
@@ -259,13 +318,13 @@ class OKFLinter:
 
         superseded_by_val = frontmatter.get("superseded_by")
         if superseded_by_val:
-            clean_id = str(superseded_by_val).rstrip(".md")
+            clean_id = strip_md_suffix(str(superseded_by_val))
             if clean_id not in self.all_concept_ids:
                 self.warnings.append(
                     f"[{rel_path}] 'superseded_by' references unknown concept ID: '{superseded_by_val}'."
                 )
 
-        # 8. Check links in body
+        # 10. Check links in body
         self.check_links(full_path, rel_path, body)
 
     def lint_index_file(self, full_path: Path, rel_path: str, content: str):
@@ -309,7 +368,6 @@ class OKFLinter:
             return parsed, body
 
     def check_links(self, full_path: Path, rel_path: str, body: str):
-        # 1. Standard markdown links: [Text](path)
         md_links = re.findall(r"\[([^\]]+)\]\(([^)]+)\)", body)
         for text, link in md_links:
             if (
@@ -338,7 +396,6 @@ class OKFLinter:
                         f"[{rel_path}] Ghost / Unresolved Link: '{link}' (target file not found)."
                     )
 
-        # 2. Obsidian style links: [[concept_name]]
         wiki_links = re.findall(r"\[\[([^\]|]+)(?:\|[^\]]+)?\]\]", body)
         for wlink in wiki_links:
             wlink_clean = wlink.strip()
@@ -354,12 +411,12 @@ class OKFLinter:
                 )
 
     def print_report(self):
-        print("\n" + "=" * 64)
-        print("🔍 Google OKF (Open Knowledge Format v0.2) Lint Report")
-        print("=" * 64)
+        print("\n" + "=" * 68)
+        print("🔍 Google OKF v0.2 & LLM Wiki v2 Lint Report")
+        print("=" * 68)
 
         if not self.errors and not self.warnings:
-            print("✅ All Wiki documents are fully conformant with OKF v0.2! (0 errors, 0 warnings)")
+            print("✅ All Wiki documents are fully conformant with OKF v0.2 & LLM Wiki v2! (0 errors, 0 warnings)")
             return
 
         if self.errors:
@@ -372,12 +429,12 @@ class OKFLinter:
             for warn in self.warnings:
                 print(f"  • {warn}")
 
-        print("\n" + "-" * 64)
+        print("\n" + "-" * 68)
         if self.errors:
             print(f"Result: FAILED (Errors must be resolved for strict OKF v0.2 conformance).")
         else:
             print(f"Result: PASSED with {len(self.warnings)} warning(s).")
-        print("-" * 64 + "\n")
+        print("-" * 68 + "\n")
 
 
 if __name__ == "__main__":

@@ -1,0 +1,126 @@
+# ==============================================================================
+# Git Ignore Rules for LLM Wiki Project
+# (Google OKF v0.2 & LLM Wiki v2 Compliant)
+# ==============================================================================
+
+# ------------------------------------------------------------------------------
+# Python & Virtual Environments
+# ------------------------------------------------------------------------------
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+build/
+develop-eggs/
+dist/
+downloads/
+eggs/
+.eggs/
+lib/
+lib64/
+parts/
+sdist/
+var/
+wheels/
+share/python-wheels/
+*.egg-info/
+.installed.cfg
+*.egg
+MANIFEST
+
+# Virtual Environments
+venv/
+.venv/
+env/
+ENV/
+env.bak/
+venv.bak/
+
+# Testing & Quality Tools Cache
+.pytest_cache/
+.coverage
+htmlcov/
+.tox/
+.nox/
+.hypothesis/
+.mypy_cache/
+.ruff_cache/
+.dmypy.json
+dmypy.json
+
+# ------------------------------------------------------------------------------
+# Secrets & Environment Variables
+# ------------------------------------------------------------------------------
+.env
+.env.*
+!.env.example
+*.pem
+*.key
+secrets/
+credentials.json
+
+# ------------------------------------------------------------------------------
+# Operating System Files
+# ------------------------------------------------------------------------------
+# macOS
+.DS_Store
+.AppleDouble
+.LSOverride
+._*
+.Spotlight-V100
+.Trashes
+
+# Windows
+Thumbs.db
+Thumbs.db:encryptable
+ehthumbs.db
+ehthumbs_vista.db
+*.stackdump
+[Dd]esktop.ini
+$RECYCLE.BIN/
+
+# Linux
+*~
+.fuse_hidden*
+.directory
+.Trash-*
+
+# ------------------------------------------------------------------------------
+# IDEs, Editors & AI Workspaces
+# ------------------------------------------------------------------------------
+.idea/
+.vscode/*
+!.vscode/settings.json
+!.vscode/tasks.json
+!.vscode/launch.json
+!.vscode/extensions.json
+*.sublime-workspace
+*.sublime-project
+
+# Antigravity / Gemini Local State
+.gemini/
+
+# ------------------------------------------------------------------------------
+# Temporary Files & Office Lock Files
+# ------------------------------------------------------------------------------
+*.tmp
+*.temp
+*.bak
+*.swp
+*.swo
+*~
+# Microsoft Office lock files (e.g. ~$schema.xlsx)
+~$*
+~$*.xlsx
+~$*.docx
+~$*.pptx
+
+# Logs
+*.log
+logs/
+
+# Scratch & Temporary Directories
+scratch/
+tmp/
+temp/

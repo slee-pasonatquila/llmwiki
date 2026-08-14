@@ -5,6 +5,22 @@ description: セキュアなシングルサインオン対応と、一般ユー�
 tags: [customer-request, auth, rbac, security]
 status: active
 
+# Memory Lifecycle
+memory_tier: episodic
+decay_rate: standard
+last_reinforced_at: 2026-08-14T16:00:00Z
+access_count: 5
+
+# Confidence Scoring
+confidence:
+  base_score: 0.95
+  current_score: 0.95
+  factors:
+    source_count: 1
+    authority: high
+    human_verified: true
+    has_contradictions: false
+
 generated:
   by: agent:antigravity/gemini-3.7-flash
   at: 2026-08-14T15:30:00Z
