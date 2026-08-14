@@ -59,9 +59,10 @@ class KnowledgeGraph:
         self.reverse_adjacency: Dict[str, List[Tuple[str, str]]] = {}
 
     def build(self):
-        # 1. Gather all concept nodes
-        for root, _, files in os.walk(self.wiki_root):
-            for file in files:
+        # 1. Gather all concept nodes (deterministically sorted)
+        for root, dirs, files in os.walk(self.wiki_root):
+            dirs.sort()
+            for file in sorted(files):
                 if file.endswith(".md") and file not in ("index.md", "log.md"):
                     full_path = Path(root) / file
                     rel_path = full_path.relative_to(self.wiki_root).as_posix()
@@ -92,7 +93,8 @@ class KnowledgeGraph:
                     self.reverse_adjacency[concept_id] = []
 
         # 2. Extract relations and links (Edges)
-        for concept_id, node in self.nodes.items():
+        for concept_id in sorted(self.nodes.keys()):
+            node = self.nodes[concept_id]
             full_path = self.wiki_root / (node["path"])
             with open(full_path, "r", encoding="utf-8", errors="replace") as f:
                 content = f.read()
@@ -103,7 +105,8 @@ class KnowledgeGraph:
             # (A) Typed relations from frontmatter
             relations = fm.get("relations", {})
             if isinstance(relations, dict):
-                for rel_type, targets in relations.items():
+                for rel_type in sorted(relations.keys()):
+                    targets = relations[rel_type]
                     if isinstance(targets, list):
                         for tgt in targets:
                             tgt_clean = strip_md_suffix(str(tgt))
@@ -134,7 +137,7 @@ class KnowledgeGraph:
             wiki_links = re.findall(r"\[\[([^\]|]+)(?:\|[^\]]+)?\]\]", body)
             for wlink in wiki_links:
                 wlink_clean = strip_md_suffix(wlink.strip())
-                matched = [nid for nid in self.nodes if nid.endswith(wlink_clean) or nid == wlink_clean]
+                matched = sorted([nid for nid in self.nodes if nid.endswith(wlink_clean) or nid == wlink_clean])
                 for m in matched:
                     if m != concept_id:
                         self.add_edge(concept_id, m, "references")
@@ -165,12 +168,14 @@ class KnowledgeGraph:
             self.reverse_adjacency[target].append((source, rel_type))
 
     def export_json(self, output_path: Path):
+        sorted_nodes = [self.nodes[k] for k in sorted(self.nodes.keys())]
+        sorted_edges = sorted(self.edges, key=lambda e: (e["source"], e["target"], e["type"]))
         data = {
             "version": "2.0",
-            "node_count": len(self.nodes),
-            "edge_count": len(self.edges),
-            "nodes": list(self.nodes.values()),
-            "edges": self.edges
+            "node_count": len(sorted_nodes),
+            "edge_count": len(sorted_edges),
+            "nodes": sorted_nodes,
+            "edges": sorted_edges
         }
         with open(output_path, "w", encoding="utf-8") as f:
             json.dump(data, f, ensure_ascii=False, indent=2)
@@ -194,7 +199,8 @@ class KnowledgeGraph:
         def sanitize_id(raw_id: str) -> str:
             return re.sub(r"[^a-zA-Z0-9_]", "_", raw_id)
 
-        for nid, node in self.nodes.items():
+        for nid in sorted(self.nodes.keys()):
+            node = self.nodes[nid]
             sid = sanitize_id(nid)
             title = node["title"].replace('"', "'")
             ntype = node["type"]
@@ -220,7 +226,8 @@ class KnowledgeGraph:
                 lines.append(f"  class {sid} decision;")
 
         lines.append("")
-        for edge in self.edges:
+        sorted_edges = sorted(self.edges, key=lambda e: (e["source"], e["target"], e["type"]))
+        for edge in sorted_edges:
             s = sanitize_id(edge["source"])
             t = sanitize_id(edge["target"])
             rel = edge["type"]

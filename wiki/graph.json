@@ -4,58 +4,20 @@
   "edge_count": 35,
   "nodes": [
     {
-      "id": "03_basic_designs/arch_auth_system",
-      "path": "03_basic_designs/arch_auth_system.md",
-      "type": "Architecture",
-      "title": "認証・認可基盤アーキテクチャ",
-      "description": "JWTステートレス認証、リフレッシュトークンローテーション、およびAPIゲートウェイでの認可検証アーキテクチャ",
-      "category": "03_basic_designs",
+      "id": "01_customer_requests/cr_user_authentication",
+      "path": "01_customer_requests/cr_user_authentication.md",
+      "type": "Customer Request",
+      "title": "ユーザー認証・権限管理の顧客要望",
+      "description": "セキュアなシングルサインオン対応と、一般ユーザー・管理者間の厳格なアクセス制御に関する顧客ヒアリング要望",
+      "category": "01_customer_requests",
       "status": "active",
-      "memory_tier": "semantic",
+      "memory_tier": "episodic",
       "confidence": 0.95,
       "tags": [
-        "architecture",
+        "customer-request",
         "auth",
-        "jwt",
-        "security",
-        "api-gateway"
-      ]
-    },
-    {
-      "id": "04_detailed_designs/table_users",
-      "path": "04_detailed_designs/table_users.md",
-      "type": "Database Table",
-      "title": "Users テーブル定義",
-      "description": "PostgreSQLにおけるユーザーマスタ、認証情報、権限ロール管理テーブルの物理設計",
-      "category": "04_detailed_designs",
-      "status": "active",
-      "memory_tier": "semantic",
-      "confidence": 0.95,
-      "tags": [
-        "database",
-        "table",
-        "schema",
-        "postgres",
-        "users",
-        "auth"
-      ]
-    },
-    {
-      "id": "04_detailed_designs/api_auth_login",
-      "path": "04_detailed_designs/api_auth_login.md",
-      "type": "API Endpoint",
-      "title": "ログイン API 仕様 (POST /api/v1/auth/login)",
-      "description": "ユーザー認証を実行し、アクセストークンとリフレッシュトークンを発行するエンドポイント仕様",
-      "category": "04_detailed_designs",
-      "status": "active",
-      "memory_tier": "semantic",
-      "confidence": 0.95,
-      "tags": [
-        "api",
-        "auth",
-        "endpoint",
-        "rest",
-        "jwt"
+        "rbac",
+        "security"
       ]
     },
     {
@@ -77,20 +39,58 @@
       ]
     },
     {
-      "id": "01_customer_requests/cr_user_authentication",
-      "path": "01_customer_requests/cr_user_authentication.md",
-      "type": "Customer Request",
-      "title": "ユーザー認証・権限管理の顧客要望",
-      "description": "セキュアなシングルサインオン対応と、一般ユーザー・管理者間の厳格なアクセス制御に関する顧客ヒアリング要望",
-      "category": "01_customer_requests",
+      "id": "03_basic_designs/arch_auth_system",
+      "path": "03_basic_designs/arch_auth_system.md",
+      "type": "Architecture",
+      "title": "認証・認可基盤アーキテクチャ",
+      "description": "JWTステートレス認証、リフレッシュトークンローテーション、およびAPIゲートウェイでの認可検証アーキテクチャ",
+      "category": "03_basic_designs",
       "status": "active",
-      "memory_tier": "episodic",
+      "memory_tier": "semantic",
       "confidence": 0.95,
       "tags": [
-        "customer-request",
+        "architecture",
         "auth",
-        "rbac",
-        "security"
+        "jwt",
+        "security",
+        "api-gateway"
+      ]
+    },
+    {
+      "id": "04_detailed_designs/api_auth_login",
+      "path": "04_detailed_designs/api_auth_login.md",
+      "type": "API Endpoint",
+      "title": "ログイン API 仕様 (POST /api/v1/auth/login)",
+      "description": "ユーザー認証を実行し、アクセストークンとリフレッシュトークンを発行するエンドポイント仕様",
+      "category": "04_detailed_designs",
+      "status": "active",
+      "memory_tier": "semantic",
+      "confidence": 0.95,
+      "tags": [
+        "api",
+        "auth",
+        "endpoint",
+        "rest",
+        "jwt"
+      ]
+    },
+    {
+      "id": "04_detailed_designs/table_users",
+      "path": "04_detailed_designs/table_users.md",
+      "type": "Database Table",
+      "title": "Users テーブル定義",
+      "description": "PostgreSQLにおけるユーザーマスタ、認証情報、権限ロール管理テーブルの物理設計",
+      "category": "04_detailed_designs",
+      "status": "active",
+      "memory_tier": "semantic",
+      "confidence": 0.95,
+      "tags": [
+        "database",
+        "table",
+        "schema",
+        "postgres",
+        "users",
+        "auth"
       ]
     },
     {
@@ -131,93 +131,18 @@
   ],
   "edges": [
     {
-      "source": "03_basic_designs/arch_auth_system",
+      "source": "01_customer_requests/cr_user_authentication",
       "target": "02_requirements/req_user_management",
-      "type": "implements"
-    },
-    {
-      "source": "03_basic_designs/arch_auth_system",
-      "target": "04_detailed_designs/table_users",
       "type": "implemented_by"
     },
     {
-      "source": "03_basic_designs/arch_auth_system",
-      "target": "04_detailed_designs/api_auth_login",
-      "type": "implemented_by"
-    },
-    {
-      "source": "03_basic_designs/arch_auth_system",
+      "source": "01_customer_requests/cr_user_authentication",
       "target": "02_requirements/req_user_management",
       "type": "references"
     },
     {
-      "source": "03_basic_designs/arch_auth_system",
-      "target": "04_detailed_designs/table_users",
-      "type": "references"
-    },
-    {
-      "source": "03_basic_designs/arch_auth_system",
-      "target": "04_detailed_designs/api_auth_login",
-      "type": "references"
-    },
-    {
-      "source": "03_basic_designs/arch_auth_system",
-      "target": "05_decisions/adr_001_jwt_auth",
-      "type": "references"
-    },
-    {
-      "source": "04_detailed_designs/table_users",
-      "target": "02_requirements/req_user_management",
-      "type": "implements"
-    },
-    {
-      "source": "04_detailed_designs/table_users",
+      "source": "01_customer_requests/cr_user_authentication",
       "target": "03_basic_designs/arch_auth_system",
-      "type": "depends_on"
-    },
-    {
-      "source": "04_detailed_designs/table_users",
-      "target": "02_requirements/req_user_management",
-      "type": "references"
-    },
-    {
-      "source": "04_detailed_designs/table_users",
-      "target": "03_basic_designs/arch_auth_system",
-      "type": "references"
-    },
-    {
-      "source": "04_detailed_designs/table_users",
-      "target": "04_detailed_designs/api_auth_login",
-      "type": "references"
-    },
-    {
-      "source": "04_detailed_designs/api_auth_login",
-      "target": "02_requirements/req_user_management",
-      "type": "implements"
-    },
-    {
-      "source": "04_detailed_designs/api_auth_login",
-      "target": "03_basic_designs/arch_auth_system",
-      "type": "depends_on"
-    },
-    {
-      "source": "04_detailed_designs/api_auth_login",
-      "target": "04_detailed_designs/table_users",
-      "type": "depends_on"
-    },
-    {
-      "source": "04_detailed_designs/api_auth_login",
-      "target": "02_requirements/req_user_management",
-      "type": "references"
-    },
-    {
-      "source": "04_detailed_designs/api_auth_login",
-      "target": "03_basic_designs/arch_auth_system",
-      "type": "references"
-    },
-    {
-      "source": "04_detailed_designs/api_auth_login",
-      "target": "04_detailed_designs/table_users",
       "type": "references"
     },
     {
@@ -227,13 +152,8 @@
     },
     {
       "source": "02_requirements/req_user_management",
-      "target": "04_detailed_designs/table_users",
-      "type": "implemented_by"
-    },
-    {
-      "source": "02_requirements/req_user_management",
-      "target": "04_detailed_designs/api_auth_login",
-      "type": "implemented_by"
+      "target": "01_customer_requests/cr_user_authentication",
+      "type": "references"
     },
     {
       "source": "02_requirements/req_user_management",
@@ -242,18 +162,13 @@
     },
     {
       "source": "02_requirements/req_user_management",
-      "target": "01_customer_requests/cr_user_authentication",
-      "type": "references"
-    },
-    {
-      "source": "02_requirements/req_user_management",
       "target": "03_basic_designs/arch_auth_system",
       "type": "references"
     },
     {
       "source": "02_requirements/req_user_management",
-      "target": "04_detailed_designs/table_users",
-      "type": "references"
+      "target": "04_detailed_designs/api_auth_login",
+      "type": "implemented_by"
     },
     {
       "source": "02_requirements/req_user_management",
@@ -262,22 +177,107 @@
     },
     {
       "source": "02_requirements/req_user_management",
+      "target": "04_detailed_designs/table_users",
+      "type": "implemented_by"
+    },
+    {
+      "source": "02_requirements/req_user_management",
+      "target": "04_detailed_designs/table_users",
+      "type": "references"
+    },
+    {
+      "source": "02_requirements/req_user_management",
       "target": "05_decisions/adr_001_jwt_auth",
       "type": "references"
     },
     {
-      "source": "01_customer_requests/cr_user_authentication",
+      "source": "03_basic_designs/arch_auth_system",
       "target": "02_requirements/req_user_management",
-      "type": "implemented_by"
+      "type": "implements"
     },
     {
-      "source": "01_customer_requests/cr_user_authentication",
+      "source": "03_basic_designs/arch_auth_system",
       "target": "02_requirements/req_user_management",
       "type": "references"
     },
     {
-      "source": "01_customer_requests/cr_user_authentication",
+      "source": "03_basic_designs/arch_auth_system",
+      "target": "04_detailed_designs/api_auth_login",
+      "type": "implemented_by"
+    },
+    {
+      "source": "03_basic_designs/arch_auth_system",
+      "target": "04_detailed_designs/api_auth_login",
+      "type": "references"
+    },
+    {
+      "source": "03_basic_designs/arch_auth_system",
+      "target": "04_detailed_designs/table_users",
+      "type": "implemented_by"
+    },
+    {
+      "source": "03_basic_designs/arch_auth_system",
+      "target": "04_detailed_designs/table_users",
+      "type": "references"
+    },
+    {
+      "source": "03_basic_designs/arch_auth_system",
+      "target": "05_decisions/adr_001_jwt_auth",
+      "type": "references"
+    },
+    {
+      "source": "04_detailed_designs/api_auth_login",
+      "target": "02_requirements/req_user_management",
+      "type": "implements"
+    },
+    {
+      "source": "04_detailed_designs/api_auth_login",
+      "target": "02_requirements/req_user_management",
+      "type": "references"
+    },
+    {
+      "source": "04_detailed_designs/api_auth_login",
       "target": "03_basic_designs/arch_auth_system",
+      "type": "depends_on"
+    },
+    {
+      "source": "04_detailed_designs/api_auth_login",
+      "target": "03_basic_designs/arch_auth_system",
+      "type": "references"
+    },
+    {
+      "source": "04_detailed_designs/api_auth_login",
+      "target": "04_detailed_designs/table_users",
+      "type": "depends_on"
+    },
+    {
+      "source": "04_detailed_designs/api_auth_login",
+      "target": "04_detailed_designs/table_users",
+      "type": "references"
+    },
+    {
+      "source": "04_detailed_designs/table_users",
+      "target": "02_requirements/req_user_management",
+      "type": "implements"
+    },
+    {
+      "source": "04_detailed_designs/table_users",
+      "target": "02_requirements/req_user_management",
+      "type": "references"
+    },
+    {
+      "source": "04_detailed_designs/table_users",
+      "target": "03_basic_designs/arch_auth_system",
+      "type": "depends_on"
+    },
+    {
+      "source": "04_detailed_designs/table_users",
+      "target": "03_basic_designs/arch_auth_system",
+      "type": "references"
+    },
+    {
+      "source": "04_detailed_designs/table_users",
+      "target": "04_detailed_designs/api_auth_login",
       "type": "references"
     },
     {
@@ -287,13 +287,13 @@
     },
     {
       "source": "05_decisions/adr_001_jwt_auth",
-      "target": "03_basic_designs/arch_auth_system",
-      "type": "implemented_by"
+      "target": "02_requirements/req_user_management",
+      "type": "references"
     },
     {
       "source": "05_decisions/adr_001_jwt_auth",
-      "target": "02_requirements/req_user_management",
-      "type": "references"
+      "target": "03_basic_designs/arch_auth_system",
+      "type": "implemented_by"
     },
     {
       "source": "05_decisions/adr_001_jwt_auth",
