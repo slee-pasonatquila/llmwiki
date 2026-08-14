@@ -9,11 +9,11 @@
 ## 📚 目次
 1. [LLM Wiki v2 の 4 大コア概念](#-llm-wiki-v2-の-4-大コア概念)
 2. [リポジトリ構成とフォルダの役割](#-リポジトリ構成とフォルダの役割)
-3. [OKF v0.2 & LLM Wiki v2 Frontmatter 仕様](#-okf-v02--llm-wiki-v2-frontmatter-仕様)
-4. [Antigravity Skills の使い方](#-antigravity-skills-の使い方)
-5. [CLI 支援ツールの使い方](#-cli-支援ツールの使い方)
-6. [運用ルールと品質規約 (Rules & Guidelines)](#-運用ルールと品質規約-rules--guidelines)
-7. [Git & GitHub 運用フロー](#-git--github-運用フロー)
+3. [Antigravity Rules & ワークフロー統合](#-antigravity-rules--ワークフロー統合)
+4. [OKF v0.2 & LLM Wiki v2 Frontmatter 仕様](#-okf-v02--llm-wiki-v2-frontmatter-仕様)
+5. [Antigravity Skills の使い方](#-antigravity-skills-の使い方)
+6. [CLI 支援ツールの使い方](#-cli-支援ツールの使い方)
+7. [Git & GitHub CI/CD 運用フロー](#-git--github-cicd-運用フロー)
 
 ---
 
@@ -72,14 +72,25 @@ flowchart TD
 ```text
 llmwiki/
 ├── README.md                      # 本ドキュメント
-├── SCHEMA.md                      # AI エージェント用 Wiki 編纂ルール (OKF v0.2 & v2 準拠)
+├── SCHEMA.md                      # Wiki 編纂・データスキーマ完全仕様書
+├── AGENTS.md                      # Antigravity エージェント自動適用 マスターガイドライン
+├── GEMINI.md                      # Antigravity エージェント自動適用 マスターガイドライン (エイリアス)
 ├── .agents/
-│   └── skills/                    # Antigravity 専用スキル群
+│   ├── rules/                     # 【Antigravity Rules】自動適用されるモジュール別品質・行動規約
+│   │   ├── 01_core_philosophy.md  # 設計思想・解像度100%保持・機密スクラビング規約
+│   │   ├── 02_okf_frontmatter.md  # OKF v0.2 & v2 Frontmatter 完全スキーマ・脚註規約
+│   │   ├── 03_memory_lifecycle.md # 4層メモリ階層・忘却曲線・矛盾解決規約
+│   │   ├── 04_wiki_operations.md  # 非破壊的更新・インデックス/グラフ即時同期規約
+│   │   └── 05_git_workflow.md     # トピックブランチ・コミット規約・CI要件
+│   └── skills/                    # 【Antigravity Skills】オンデマンド対話型 Runbook
 │       ├── llm-wiki-clean/        # Markdown 不要空欄・Excel空セル削除・構造整形・シークレット除去
 │       ├── llm-wiki-ingest/       # 一次資料取り込み・OKF v0.2 知識化・脚注・初期確信度付与
 │       ├── llm-wiki-lint/         # OKF v0.2 整合性・ゴーストリンク・脚注・グラフ検査
 │       ├── llm-wiki-query/        # ハイブリッド検索・Graph Traversal・仕様回答
 │       └── llm-wiki-update/       # 仕様変更・ADR 起票・忘却曲線再強化・世代交代
+├── .github/
+│   └── workflows/
+│       └── ci.yml                 # 【GitHub Actions】Push/PR 時に OKF リントとグラフ整合性を自動検証
 ├── scripts/                       # 運用スクリプト群
 │   ├── hybrid_search.py           # BM25 + Semantic + Graph + RRF ハイブリッド検索エンジン
 │   ├── memory_decay.py            # 忘却曲線減衰計算・再強化・stale 知識レポート
@@ -107,6 +118,50 @@ llmwiki/
     ├── 05_decisions/              # アーキテクチャ決定記録 (ADR)
     └── 99_others/                 # プロジェクト共通用語集 (glossary.md) 等
 ```
+
+---
+
+## 🤖 Antigravity Rules & ワークフロー統合
+
+Antigravity では、エージェントの行動規約（Rules）と対話型実行手順（Skills）、自動テスト（Workflows）が有機的に連携して動作します。
+
+```mermaid
+flowchart TD
+    subgraph Antigravity Engine
+        AG["AGENTS.md / GEMINI.md<br/>(エントリーポイント共通ルール)"]
+        
+        subgraph ".agents/rules/ (不変の行動規約・自動適用)"
+            R1["01_core_philosophy.md<br/>・解像度100%保持<br/>・機密スクラビング"]
+            R2["02_okf_frontmatter.md<br/>・OKF v0.2 厳格定義<br/>・脚注 [^id] 必須"]
+            R3["03_memory_lifecycle.md<br/>・4層メモリ<br/>・忘却曲線 & 矛盾解決"]
+            R4["04_wiki_operations.md<br/>・非破壊的更新<br/>・index/log/graph 自動同期"]
+            R5["05_git_workflow.md<br/>・ブランチ & コミット規約"]
+        end
+        
+        subgraph ".agents/skills/ (オンデマンド対話型 Runbook)"
+            S1["llm-wiki-clean"]
+            S2["llm-wiki-ingest"]
+            S3["llm-wiki-update"]
+            S4["llm-wiki-query"]
+            S5["llm-wiki-lint"]
+        end
+
+        subgraph ".github/workflows/ (GitHub Actions CI)"
+            CI["ci.yml<br/>・OKF v0.2 自動リント<br/>・ナレッジグラフ整合性検査"]
+        end
+
+        AG --> R1 & R2 & R3 & R4 & R5
+        R1 & R2 & R3 & R4 & R5 -.-> S1 & S2 & S3 & S4 & S5
+        R5 -.-> CI
+    end
+```
+
+### 🎯 エージェント行動の 5 大原則
+1. **解像度の完全保持（最重要）**: 一次資料からの取り込み時、API パラメータ、DB カラム型、エラーコード等の詳細定義を絶対に要約省略しない。
+2. **Google OKF v0.2 Frontmatter 必須**: `wiki/` 配下のすべてのファイルに完全な Frontmatter を付与。
+3. **主張単位の根拠付け（Footnotes `[^id]`）**: 本文中の記述は `sources` の `id` と紐づく脚注記法で裏付けを明記。
+4. **非破壊的更新の原則**: 仕様変更時は過去の記述を削除せず、取り消し線（`~~`）で残すか `supersedes` / `superseded_by` で安全に世代交代。
+5. **ナレッジグラフ・インデックスの即時同期**: 編集後は必ず `index.md`、`wiki/log.md` を更新し、`build_graph.py` でナレッジグラフを再構築。
 
 ---
 
@@ -165,6 +220,28 @@ relations:
 
 ---
 
+## 🚀 Antigravity Skills の使い方
+
+Antigravity IDE のチャット画面から、自然な指示を出すだけで、AI エージェントが自律的に実行します。
+
+### 1. 資料の追加・Wiki 化 (`llm-wiki-ingest`)
+一次資料（Excel, PDF, Word, SQL 等）を指定するだけで、不要な空セルや空行を自動クレンジングし、シークレットを除去した上で適切な `memory_tier`、初期確信度、`sources` ＋ 脚注を付与して取り込みます。
+> **プロンプト例:** 「`raw/04_detailed_designs/db_schema.xlsx` を Wiki に追加してください。」
+
+### 2. 質問・横断検索 (`llm-wiki-query`)
+ハイブリッド検索（BM25 + セマンティック + グラフ近傍）を実行し、減衰後確信度、メモリ階層、Graph Traversal（`implements`, `depends_on` 等）を辿って根拠（Footnotes / Sources）付きで回答します。
+> **プロンプト例:** 「パスワードロックの仕様と、関連するDBテーブル・API定義を教えてください。」
+
+### 3. 仕様変更・世代交代 (`llm-wiki-update`)
+仕様変更時に過去の記述を取り消し線（`~~`）で残しつつ更新し、忘却曲線を再強化（Reinforce）し、必要に応じて ADR 起票や旧ドキュメントの世代交代（`supersedes` / `superseded_by`）を行います。
+> **プロンプト例:** 「パスワード失敗時のロック時間を15分から30分に変更してください。」
+
+### 4. Wiki の整合性検査・修復 (`llm-wiki-lint`)
+OKF v0.2 + v2 適合性、リンク切れ、グラフの矛盾、減衰（stale）ドキュメントを検査・修復します。
+> **プロンプト例:** 「Wiki 全体の整合性とナレッジグラフをチェックして更新してください。」
+
+---
+
 ## 🛠️ CLI 支援ツールの使い方
 
 ### 1. ハイブリッド検索 (`hybrid_search.py`)
@@ -207,29 +284,7 @@ python3 scripts/lint_okf.py wiki/
 
 ---
 
-## 🚀 Antigravity Skills の使い方
-
-Antigravity IDE のチャット画面から、自然な指示を出すだけで、AI エージェントが自律的に実行します。
-
-### 1. 資料の追加・Wiki 化 (`llm-wiki-ingest`)
-一次資料（Excel, PDF, Word, SQL 等）を指定するだけで、不要な空セルや空行を自動クレンジングし、シークレットを除去した上で適切な `memory_tier`、初期確信度、`sources` ＋ 脚注を付与して取り込みます。
-> **プロンプト例:** 「`raw/04_detailed_designs/db_schema.xlsx` を Wiki に追加してください。」
-
-### 2. 質問・横断検索 (`llm-wiki-query`)
-ハイブリッド検索（BM25 + セマンティック + グラフ近傍）を実行し、減衰後確信度、メモリ階層、Graph Traversal（`implements`, `depends_on` 等）を辿って根拠（Footnotes / Sources）付きで回答します。
-> **プロンプト例:** 「パスワードロックの仕様と、関連するDBテーブル・API定義を教えてください。」
-
-### 3. 仕様変更・世代交代 (`llm-wiki-update`)
-仕様変更時に過去の記述を取り消し線（`~~`）で残しつつ更新し、忘却曲線を再強化（Reinforce）し、必要に応じて ADR 起票や旧ドキュメントの世代交代（`supersedes` / `superseded_by`）を行います。
-> **プロンプト例:** 「パスワード失敗時のロック時間を15分から30分に変更してください。」
-
-### 4. Wiki の整合性検査・修復 (`llm-wiki-lint`)
-OKF v0.2 + v2 適合性、リンク切れ、グラフの矛盾、減衰（stale）ドキュメントを検査・修復します。
-> **プロンプト例:** 「Wiki 全体の整合性とナレッジグラフをチェックして更新してください。」
-
----
-
-## 🐙 Git & GitHub 運用フロー
+## 🐙 Git & GitHub CI/CD 運用フロー
 
 1. **ブランチ運用**: 新規資料の取り込みや仕様更新はトピックブランチ（例: `feature/ingest-auth-spec`）で作業。
-2. **CI / CD (GitHub Actions)**: Pull Request 時に `python3 scripts/lint_okf.py wiki/` および `python3 scripts/build_graph.py wiki/` を実行し、整合性とナレッジグラフの健全性を自動検証します。
+2. **CI / CD (GitHub Actions)**: Pull Request 時に `.github/workflows/ci.yml` により `python3 scripts/lint_okf.py wiki/` および `python3 scripts/build_graph.py wiki/` が自動実行され、整合性とナレッジグラフの健全性を自動検証・保護します。
