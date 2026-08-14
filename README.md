@@ -14,7 +14,8 @@
 5. [OKF v0.2 & LLM Wiki v2 Frontmatter 仕様](#-okf-v02--llm-wiki-v2-frontmatter-仕様)
 6. [Antigravity Skills の使い方](#-antigravity-skills-の使い方)
 7. [CLI 支援ツールの使い方](#-cli-支援ツールの使い方)
-8. [Git & GitHub CI/CD 運用フロー](#-git--github-cicd-運用フロー)
+8. [Wiki 基本操作ガイド（追加・修正・削除の流れ）](#-wiki-基本操作ガイド追加修正削除の流れ)
+9. [Git & GitHub CI/CD 運用フロー](#-git--github-cicd-運用フロー)
 
 ---
 
@@ -64,20 +65,111 @@ flowchart TD
 
 ## 👥 複数人協調・コンフリクト完全排除ルール
 
-複数ユーザー・複数エージェントが並行してドキュメントを編纂する際、以下の原則に従います。
+本ナレッジベースの最大の特徴は、**「ユーザーは `raw/` フォルダにファイルを配置・修正・削除するだけで、複雑なメタデータ設定やコンフリクト解決は AI とスクリプトが全自動で処理する（ゼロタッチ運用）」** 点にあります。
 
-### ① 集中ファイル（`index.md`, `log.md`, `graph.*`）の手動編集禁止
-* 各作業者は、自身の担当する Concept ファイル（例: `wiki/04_detailed_designs/api_xxx.md`）と断片ログ（`wiki/.changelogs/`）のみをコミットします。
-* `index.md` や `log.md`、`graph.json` は CI または `python3 scripts/sync_wiki.py` により自動生成されます。
+複数ユーザー・複数エージェントが並行して作業する際、以下の自動化メカニズムとルールが適用されます。
 
-### ② 仕様対立時の両論併記ルール（`contradicts` & ADR First）
-* 異なるチームや機能間で仕様の不一致が発生した場合、**相手のドキュメントを無断で上書き・削除してはなりません**。
-* 一時的に `relations.contradicts: [対象ファイル]` を付与して両論併記とし、`wiki/05_decisions/` に **ADR（アーキテクチャ決定記録）** を起票して合意形成を行います。
-* ADR が確定した段階で、一方を `deprecated` / `superseded_by` に更新します。
+```mermaid
+flowchart TD
+    subgraph "👤 ユーザーの操作（これだけ！）"
+        RawAction["raw/ フォルダにファイルを追加・更新・削除"]
+    end
 
-### ③ 下書きステータス（`status: draft`）の運用
-* 執筆途中のドキュメントは `status: draft` を設定します。
-* CI（`lint_okf.py`）により、他ドキュメントが `draft` 状態のファイルに対して不正に `depends_on` 等の依存関係を結んでいないかを自動検知・警告します。
+    subgraph "🤖 AI & Script の完全自動バックグラウンド処理"
+        Ingest["1. Ingest (自動クレンジング & Markdown化)"]
+        Infer["2. 既存Wiki横断探索 (ハイブリッド検索 & 関連性自動推論)"]
+        FM["3. Frontmatter 自動生成 (status: draft, sources, relations)"]
+        Conflict{"4. 既存仕様との対立はあるか？"}
+        
+        NoConflict["対立なし: relations (implements/depends_on/uses) を自動付与"]
+        HasConflict["対立あり (矛盾検知):<br/>・relations.contradicts を自動付与<br/>・両論併記の ADR 草案を自動起票"]
+        
+        Lint["5. lint_okf.py 整合性検証 & 断片ログ自動生成"]
+    end
+
+    subgraph "🐙 CI/CD (GitHub Actions)"
+        PR["Pull Request 自動作成 / レビュー"]
+        Approve["人間レビュー承認 (status: active に自動昇格)"]
+        Merge["Main マージ時に sync_wiki.py 自動実行<br/>(index.md / log.md / graph.* 自動同期)"]
+    end
+
+    RawAction --> Ingest --> Infer --> FM --> Conflict
+    Conflict -- No --> NoConflict --> Lint
+    Conflict -- Yes --> HasConflict --> Lint
+    Lint --> PR --> Approve --> Merge
+```
+
+---
+
+### ① `relations` の具体的な設定方法と意味
+
+`relations` は、ドキュメント間の関係性を型付きナレッジグラフとして表現するフィールドです。**通常は AI（`llm-wiki-ingest`）が既存ドキュメントを検索して自動推論・自動設定**しますが、手動設定する場合は以下のルールに従います。
+
+* **パス指定の形式**: `wiki/` からの相対パス（拡張子 `.md` は省略可）。
+  - 例: `02_requirements/req_auth_system`, `04_detailed_designs/api_login`
+
+```yaml
+relations:
+  # 【実現関係】どの要件や上位設計を実現・具体化しているか
+  implements: 
+    - 02_requirements/req_user_management
+    - 03_basic_designs/arch_auth_system
+
+  # 【依存関係】この仕様が成立するために前提となる上位・関連設計
+  depends_on: 
+    - 03_basic_designs/infra_postgresql
+    - 04_detailed_designs/table_users
+
+  # 【利用関係】この仕様が参照・利用する外部モジュールや共通仕様
+  uses: 
+    - 99_others/glossary
+    - 04_detailed_designs/api_auth_token
+
+  # 【対立・矛盾関係】仕様の不一致や対立が存在するドキュメント（ADRで解決するまで一時指定）
+  contradicts: 
+    - 04_detailed_designs/legacy_auth_spec
+```
+
+---
+
+### ② 複数ユーザー同時追加時の「仕様対立」はどう検知・設定されるか？
+
+同時に作業しているユーザー同士は、追加した時点では他者の変更や仕様の不一致（例: パスワード最小文字数が 8 文字 vs 12 文字、カラム型の違い等）を把握できません。
+この問題は、**AI と CI の「自動関係性推論」および「セマンティック矛盾検出」** により完全に自動化されます。
+
+#### 1. AI による取り込み時の自動関係性推論 (Auto-Relation Inference)
+* ユーザーが `raw/` にファイルを置くと、AI（`llm-wiki-ingest`）は `scripts/hybrid_search.py` を内部実行し、Wiki 内の既存ドキュメントを横断検索（キーワード＋意味類似度）します。
+* 類似度や意味的文脈の高い上位ドキュメントを特定し、`implements`, `depends_on`, `uses` を**自動判定して Frontmatter に設定**します。
+
+#### 2. 仕様対立の自動検知と両論併記 (Auto-Conflict & Contradiction Detection)
+* AI は新ドキュメントの内容と、既存の関連ドキュメントの記述を比較・検証します。
+* **矛盾（値やルールの食い違い）が発見された場合**:
+  1. 相手のドキュメントを勝手に上書き・削除せず、新ドキュメントの `relations.contradicts: [対象ドキュメント]` に自動設定します。
+  2. `wiki/05_decisions/adr_draft_YYYYMMDD_<topic>.md`（ADR の草案）を自動作成し、両方の仕様の違い・論点・提案を両論併記でまとめます。
+  3. PR 作成時に「⚠️ 仕様対立が検知されました」とレビュアーに自動通知します。
+
+#### 3. PR / CI レベルでの重複・矛盾検知
+* 複数人が同時に PR を出した場合でも、GitHub Actions の `lint_okf.py` がマージ前にグラフ全体の循環参照、重複 ID、未解決の `contradicts` を自動検証し、安全な統合を保証します。
+
+---
+
+### ③ 下書きステータス（`status: draft`）の自動ライフサイクル運用
+
+ドキュメントの品質と信頼性を保つため、ステータスは以下のように自動管理されます。
+
+| ステータス | 状態の説明 | 自動化トリガー |
+| :--- | :--- | :--- |
+| **`draft`** | 下書き・取り込み直後（レビュー待ち） | `raw/` から取り込んだ直後に **AI が自動設定**。他ドキュメントからの不正な依存（`depends_on`）は CI で警告。 |
+| **`active`** | 本番仕様（承認済み・高信頼性） | PR レビューで `LGTM` または人間による検証（`verified.by`）完了時に **CI / AI が自動昇格**。 |
+| **`stale`** | 鮮度低下（要再確認） | 忘却曲線により `current_score < 0.50` に減衰したドキュメントを **`memory_decay.py` が自動検知**。 |
+| **`deprecated`** | 廃止・後継あり | 新ドキュメントが `supersedes` を指定してマージされた際に **旧ドキュメントへ自動反映**。 |
+| **`tombstone`** | 完全に破棄された仕様 | 削除・廃棄された仕様の墓標として保持。 |
+
+---
+
+### ④ 集中ファイル（`index.md`, `log.md`, `graph.*`）の手動編集禁止
+* 各作業者・エージェントは Concept ファイルと断片ログ（`wiki/.changelogs/`）のみを操作します。
+* `index.md` や `log.md`、`graph.json` は `sync_wiki.py` または GitHub Actions CI が自動生成するため、Git コンフリクトが原理的に発生しません。
 
 ---
 
@@ -301,7 +393,159 @@ python3 scripts/lint_okf.py wiki/
 
 ---
 
-## 🐙 Git & GitHub CI/CD 運用フロー
+## 📖 Wiki 基本操作ガイド（追加・修正・削除の流れ）
+
+人間開発者および AI エージェント（Antigravity）が Wiki を運用する際の標準的な操作フローです。
+
+```mermaid
+flowchart TD
+    subgraph "① 新しいドキュメントを追記する場合"
+        A1["1. 一次資料を raw/ に配置"] --> A2["2. llm-wiki-ingest を実行<br/>(クレンジング・Frontmatter・脚注・断片ログ生成)"]
+        A2 --> A3["3. lint_okf.py で検証 & PR 作成"]
+    end
+
+    subgraph "② ドキュメントを修正・再反映する場合"
+        B1["1. 原本更新 または Wiki 直接編集"] --> B2["2. llm-wiki-update を実行<br/>(非破壊的更新 ~~旧仕様~~ / メモリ再強化 / 断片ログ生成)"]
+        B2 --> B3["3. lint_okf.py で検証 & PR 作成"]
+    end
+
+    subgraph "③ ドキュメントを削除（廃止）する場合"
+        C1["1. 非破壊的廃止 (status: deprecated / tombstone)"] --> C2["2. superseded_by & 依存関係の付け替え<br/>(断片ログ生成)"]
+        C2 --> C3["3. lint_okf.py で検証 & PR 作成"]
+    end
+
+    A3 & B3 & C3 --> Merge["GitHub Actions による自動マージ & sync_wiki.py 自動実行<br/>(index.md / log.md / graph.* の自動更新)"]
+```
+
+---
+
+### 1. 新しいドキュメントを追記（新規登録）する場合
+
+一次資料（Excel, PDF, Word, SQL, Markdown 等）を受領または作成し、Wiki に新しい知識として取り込む際の手順です。
+
+#### Step 1: 一次資料を `raw/` フォルダに配置
+受領した原本ファイルを `raw/` 配下の適切なカテゴリディレクトリに保存します。
+- 顧客ヒアリング・要望：`raw/01_customer_requests/`
+- 要件定義書：`raw/02_requirements/`
+- 基本設計書・構成図：`raw/03_basic_designs/`
+- 詳細設計書（DB定義 Excel、API仕様等）：`raw/04_detailed_designs/`
+- 意思決定・比較資料：`raw/05_decisions/`
+- その他（議事録・規約等）：`raw/99_others/`
+
+#### Step 2: Antigravity に Ingest（Wiki 化）を依頼
+AI エージェントに資料の Wiki 化を指示します（または CLI ツールを使用）。
+> **プロンプト指示例:**
+> ```text
+> raw/04_detailed_designs/user_api_spec.xlsx を Wiki に追加してください。
+> ```
+* **エージェントが自動実行する処理**:
+  1. **クレンジング & 機密マスク**: 表の空セル・不要空行の除去（`table_cleaner.py`）およびシークレット（APIキーや個人情報）のマスク。
+  2. **解像度の 100% 保持**: パラメータ型、NULL 可否、エラーコード等の詳細仕様を省略せずに Markdown 化。
+  3. **OKF v0.2 Frontmatter 付与**: `type`, `memory_tier`, `confidence`, `sources`, `relations` を定義。
+  4. **主張単位の根拠付け**: 本文中の各仕様に `[^src-1]` のような脚注を付与し、`sources` の原本と紐付け。
+  5. **断片チェンジログの作成**: `wiki/.changelogs/YYYYMMDD_<author>_<topic>.json` を自動生成。
+
+#### Step 3: ローカル整合性検証
+作業ブランチでリントを実行し、エラーがないことを確認します。
+```bash
+python3 scripts/lint_okf.py wiki/
+```
+
+#### Step 4: トピックブランチから Pull Request を作成
+- 作業した Concept ファイル（例: `wiki/04_detailed_designs/api_users.md`）と断片ログ（`wiki/.changelogs/`）をコミットして PR を作成します。
+- **※注意**: `index.md` や `log.md` は手動編集しません。PR マージ時に GitHub Actions が `sync_wiki.py` を自動実行し、全体のインデックスやナレッジグラフを安全に同期します。
+
+---
+
+### 2. ドキュメントを修正し、再度 Wiki に反映（更新）する場合
+
+要件の変更、設計の見直し、または `raw/` の原本ファイルが更新された際の手順です。
+
+#### パターン A: 一次資料（原本）が更新された場合
+1. `raw/` 配下の該当ファイルを最新版に上書き配置します。
+2. Antigravity に更新取り込みを依頼します。
+   > **プロンプト指示例:**
+   > ```text
+   > raw/04_detailed_designs/user_api_spec.xlsx の変更内容を Wiki に反映してください。
+   > ```
+3. エージェントが新旧差分を解析し、以下の非破壊的更新を適用します。
+
+#### パターン B: Wiki 上で直接仕様変更・設計見直しを行う場合
+1. Antigravity に対話で仕様変更を依頼します。
+   > **プロンプト指示例:**
+   > ```text
+   > パスワード連続失敗時のアカウントロック期間を「15分」から「30分」に変更し、関連ドキュメントも更新してください。
+   > ```
+2. **エージェントが実行する更新規約**:
+   - **非破壊的更新の徹底**: 過去の記述を削除せず、取り消し線（`~~旧仕様~~`）を残した上で新仕様を併記。
+     ```markdown
+     - ロックアウト時間: ~~15分~~ **30分に改定 (2026-08-14 要件見直しによる)**[^req-sec-v2]
+     ```
+   - **抜本的刷新の場合（世代交代）**:
+     - 新しい Concept ドキュメントを作成し、`supersedes: [旧ファイルパス]` を設定。
+     - 旧ドキュメントは `status: deprecated` および `superseded_by: 新ファイルパス` に更新。
+   - **アーキテクチャ重要決定**:
+     - 重要方針の変更は `wiki/05_decisions/` に新規 ADR（例: `adr_003_xxx.md`）を起票。
+   - **忘却曲線の再強化 (Reinforce)**:
+     - `last_reinforced_at` を現在日時に更新し、確信度スコアをリフレッシュ。
+   - **断片チェンジログの追加**:
+     - `wiki/.changelogs/` に変更サマリを自動保存。
+
+3. **ローカル検証 & PR 作成**:
+   ```bash
+   python3 scripts/lint_okf.py wiki/
+   ```
+   リント通過後、PR を作成します。
+
+---
+
+### 3. Wiki からドキュメントを削除（廃止・アーカイブ）する場合
+
+Wiki では、ナレッジグラフの接続性、過去の意思決定の経緯、他ドキュメントからのリンク整合性を維持するため、**ファイルの物理削除（`git rm` 等による即時削除）は原則禁止**としています。
+
+#### Step 1: ステータスの変更（論理削除・Deprecation）
+対象ファイルの Frontmatter および本文冒頭を以下のように更新します。
+
+1. **Frontmatter の更新**:
+   ```yaml
+   status: deprecated   # または tombstone
+   confidence:
+     current_score: 0.00
+   # 後継ドキュメントが存在する場合は指定
+   superseded_by: 04_detailed_designs/api_login_v2
+   ```
+
+2. **ドキュメント冒頭に廃止通知を記載**:
+   ```markdown
+   > ⚠️ **【廃止通知 / Deprecated】**
+   > 本仕様は 2026-08-14 の仕様見直し（ADR-004）に伴い廃止されました。
+   > 後継仕様は [[04_detailed_designs/api_login_v2]] を参照してください。
+   ```
+
+#### Step 2: 依存関係の付け替え・解消
+1. 他のドキュメントが対象ファイルを `depends_on` や `implements` に指定している場合、後継ドキュメントへのリンクに付け替えるか、不要な参照を削除します。
+2. ナレッジグラフ検索（`scripts/hybrid_search.py`）等で影響範囲を確認します。
+
+#### Step 3: 断片チェンジログの作成
+廃止理由と対象ファイルを断片ログに記録します。
+```bash
+python3 scripts/build_changelog.py add "user:yourname" "ドキュメント廃止" "wiki/04_detailed_designs/old_api.md を deprecated に変更"
+```
+
+#### Step 4: 整合性検証と PR 作成
+```bash
+# リンク切れや不正な依存が残っていないか検証
+python3 scripts/lint_okf.py wiki/
+```
+PR を作成してマージされると、`sync_wiki.py` によりインデックスおよびナレッジグラフから安全に更新・除外されます。
+
+> [!NOTE]
+> **誤作成・完全孤立した下書きの一時削除について**:
+> 作成途中の下書き（`status: draft`）で、他ドキュメントからの被参照が一切ないファイルに限り、物理削除（`rm`）が可能です。削除後は必ず `python3 scripts/sync_wiki.py` および `python3 scripts/lint_okf.py wiki/` を実行して整合性を確認してください。
+
+---
+
+## 🐙 9. Git & GitHub CI/CD 運用フロー
 
 1. **トピックブランチ作成**:
    - `feature/ingest-<topic>`, `feature/update-<topic>`, `docs/adr-<number>` 等のブランチで作業。

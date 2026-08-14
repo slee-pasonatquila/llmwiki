@@ -32,8 +32,14 @@ description: "一次資料 (Office, PDF, SQL, text 等) を自動クレンジン
 ### 2. 知識の分割 (Concept 分割)
 - 1 つの大きな資料をそのまま 1 ファイルにするのではなく、**「1 概念 = 1 ファイル」** の原則で論理的に分割します。
 
-### 3. OKF v0.2 & LLM Wiki v2 フォーマットの適用
-生成するすべての Concept ドキュメントに以下の Frontmatter を適用します：
+### 3. 自動関係性推論 (Auto-Relation Inference) と矛盾検知
+- `scripts/hybrid_search.py` 等で既存の `wiki/` 内を検索し、関連する上位ドキュメントを特定して `relations`（`implements`, `depends_on`, `uses`）を自動推論・設定します。
+- 既存仕様との対立・矛盾を発見した場合：
+  - `relations.contradicts: [対象ファイル]` を自動付与。
+  - `wiki/05_decisions/` に両論併記の ADR 草案（`adr_draft_YYYYMMDD_<topic>.md`）を自動起票。
+
+### 4. OKF v0.2 & LLM Wiki v2 フォーマットの適用
+生成するすべての Concept ドキュメントに以下の Frontmatter を適用します（初期状態は `status: draft`）：
 
 ```yaml
 ---
@@ -41,7 +47,7 @@ type: Database Table
 title: Users Table Specification
 description: ユーザーマスタおよび認証情報のテーブル定義
 tags: [auth, user, db]
-status: active
+status: draft                    # 取り込み直後は draft（PR承認で active に昇格）
 
 # Memory Lifecycle
 memory_tier: semantic
@@ -73,10 +79,11 @@ sources:
 relations:
   implements: [02_requirements/req_user_management]
   depends_on: [03_basic_designs/arch_auth_system]
+  uses: [03_basic_designs/infra_postgresql]
+  contradicts: []
 ---
 ```
 
-### 4. インデックス・更新履歴・ナレッジグラフの自動更新（必須）
-- 各カテゴリフォルダの `index.md` に新しい Concept へのリンクと説明を追加。
-- `wiki/log.md` の先頭に取り込み履歴を追記。
-- `python3 scripts/build_graph.py wiki/` を実行し、`graph.json` および `graph.mermaid` を自動更新。
+### 5. 断片チェンジログの作成と整合性検証
+- `wiki/.changelogs/YYYYMMDD_<author>_<topic>.json` を自動保存。
+- `python3 scripts/lint_okf.py wiki/` でエラーがないことを確認。
