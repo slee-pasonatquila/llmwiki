@@ -1,8 +1,8 @@
-# LLM Wiki for Development Projects (Google OKF v0.2 & LLM Wiki v2 / Multi-User Compliant)
+# LLM Wiki for Development Projects (Google OKF v0.2 & LLM Wiki v2 / Multi-User & Dual Agent Compliant)
 
 本リポジトリは、開発プロジェクトにおける各種ドキュメント（顧客要望、要件定義書、概要設計書、詳細設計書、ADR、議事録等）を、**LLM Wiki v2 概念**（忘却曲線、確信度スコア、4層メモリ階層、型付きナレッジグラフ、ハイブリッド検索、自動フック）および **Google OKF (Open Knowledge Format) v0.2** 仕様に基づいて一元管理・運用するための統合ナレッジベースです。
 
-一次情報（Office / PDF / SQL / テキスト）を自動クレンジング・機密スクラビングして取り込み、人間と複数の AI エージェント（Antigravity）、複数人の開発者が**コンフリクトなく並行して協調編集・検索・検証できるマルチユーザー設計**を備えています。
+一次情報（Office / PDF / SQL / テキスト）を自動クレンジング・機密スクラビングして取り込み、人間と複数の AI エージェント（**Google Antigravity** & **Claude Code**）、複数人の開発者が**コンフリクトなく並行して協調編集・検索・検証できるマルチユーザー・デュアルエージェント設計**を備えています。
 
 ---
 
@@ -10,9 +10,9 @@
 1. [LLM Wiki v2 & マルチユーザー協調アーキテクチャ](#-llm-wiki-v2--マルチユーザー協調アーキテクチャ)
 2. [複数人協調・コンフリクト完全排除ルール](#-複数人協調コンフリクト完全排除ルール)
 3. [リポジトリ構成とフォルダの役割](#-リポジトリ構成とフォルダの役割)
-4. [Antigravity Rules & ワークフロー統合](#-antigravity-rules--ワークフロー統合)
+4. [AI エージェント統合 (Antigravity & Claude Code)](#-ai-エージェント統合-antigravity--claude-code)
 5. [OKF v0.2 & LLM Wiki v2 Frontmatter 仕様](#-okf-v02--llm-wiki-v2-frontmatter-仕様)
-6. [Antigravity Skills の使い方](#-antigravity-skills-の使い方)
+6. [エージェント操作・スラッシュコマンド & Skills](#-エージェント操作スラッシュコマンド--skills)
 7. [CLI 支援ツールの使い方](#-cli-支援ツールの使い方)
 8. [Wiki 基本操作ガイド（追加・修正・削除の流れ）](#-wiki-基本操作ガイド追加修正削除の流れ)
 9. [Git & GitHub CI/CD 運用フロー](#-git--github-cicd-運用フロー)
@@ -179,8 +179,17 @@ relations:
 llmwiki/
 ├── README.md                      # 本ドキュメント
 ├── SCHEMA.md                      # Wiki 編纂・データスキーマ完全仕様書
-├── AGENTS.md                      # Antigravity エージェント自動適用 マスターガイドライン
-├── GEMINI.md                      # Antigravity エージェント自動適用 マスターガイドライン (エイリアス)
+├── CLAUDE.md                      # 【Claude Code】マスター指示・ガイドライン
+├── AGENTS.md                      # 【Google Antigravity】マスター指示・ガイドライン
+├── GEMINI.md                      # 【Google Antigravity】マスター指示 (エイリアス)
+├── .claude/
+│   └── commands/                  # 【Claude Code】カスタムスラッシュコマンド定義
+│       ├── ingest.md              # /ingest: 一次資料取り込み・OKF知識化
+│       ├── query.md               # /query: ハイブリッド検索・仕様回答
+│       ├── update.md              # /update: 仕様更新・ADR起票・世代交代
+│       ├── lint.md                # /lint: OKF整合性・忘却曲線検査
+│       ├── clean.md               # /clean: Markdown表クレンジング・機密マスク
+│       └── sync.md                # /sync: index/log/graph 一括自動再構築
 ├── .agents/
 │   ├── rules/                     # 【Antigravity Rules】自動適用されるモジュール別品質・行動規約
 │   │   ├── 01_core_philosophy.md  # 設計思想・解像度100%保持・機密スクラビング規約
@@ -234,41 +243,42 @@ llmwiki/
 
 ---
 
-## 🤖 Antigravity Rules & ワークフロー統合
+## 🤖 AI エージェント統合 (Antigravity & Claude Code)
+
+本リポジトリは、**Google Antigravity**（Gemini 搭載）と **Claude Code**（Anthropic CLI）の双方で同一の品質・動作仕様を保証するデュアル対応アーキテクチャを採用しています。
 
 ```mermaid
 flowchart TD
-    subgraph Antigravity Engine
-        AG["AGENTS.md / GEMINI.md<br/>(エントリーポイント共通ルール)"]
-        
-        subgraph ".agents/rules/ (不変の行動規約・自動適用)"
-            R1["01_core_philosophy.md<br/>・解像度100%保持<br/>・機密スクラビング"]
-            R2["02_okf_frontmatter.md<br/>・OKF v0.2 厳格定義<br/>・脚注 [^id] 必須"]
-            R3["03_memory_lifecycle.md<br/>・4層メモリ<br/>・忘却曲線 & 矛盾解決"]
-            R4["04_wiki_operations.md<br/>・非破壊的更新<br/>・複数人協調 & 自動同期"]
-            R5["05_git_workflow.md<br/>・PR & コミット規約<br/>・CI/CD 自動化"]
-        end
-        
-        subgraph ".agents/skills/ (オンデマンド対話型 Runbook)"
-            S1["llm-wiki-clean"]
-            S2["llm-wiki-ingest"]
-            S3["llm-wiki-update"]
-            S4["llm-wiki-query"]
-            S5["llm-wiki-lint"]
-        end
-
-        subgraph ".github/workflows/ (GitHub Actions CI/CD)"
-            CI["ci.yml<br/>・PR時: OKF/重複IDリント<br/>・Merge時: sync_wiki 自動コミット"]
-        end
-
-        AG --> R1 & R2 & R3 & R4 & R5
-        R1 & R2 & R3 & R4 & R5 -.-> S1 & S2 & S3 & S4 & S5
-        R5 -.-> CI
+    subgraph "Dual Agent Entry Points"
+        AG["Google Antigravity<br/>(AGENTS.md / GEMINI.md)"]
+        CC["Claude Code<br/>(CLAUDE.md)"]
     end
+
+    subgraph "共通品質・行動規約 (.agents/rules/)"
+        R1["01_core_philosophy.md (解像度100%保持・機密保護)"]
+        R2["02_okf_frontmatter.md (OKF v0.2 スキーマ・脚注記法)"]
+        R3["03_memory_lifecycle.md (4層メモリ・忘却曲線)"]
+        R4["04_wiki_operations.md (非破壊更新・分散Sync)"]
+        R5["05_git_workflow.md (Git PR & コミット規約)"]
+    end
+
+    subgraph "エージェント実行インターフェース"
+        S_AG["Antigravity Skills<br/>(.agents/skills/*)"]
+        S_CC["Claude Code Commands<br/>(.claude/commands/*)"]
+    end
+
+    subgraph "共通自動化ツール (scripts/)"
+        Tools["lint_okf.py / sync_wiki.py / hybrid_search.py / convert_anydoc.py / metrics_db.py"]
+    end
+
+    AG --> R1 & R2 & R3 & R4 & R5
+    CC --> R1 & R2 & R3 & R4 & R5
+    AG --> S_AG --> Tools
+    CC --> S_CC --> Tools
 ```
 
-### 🎯 エージェント行動の 5 大原則
-1. **解像度の完全保持（最重要）**: 一次資料からの取り込み時、API パラメータ、DB カラム型、エラーコード等の詳細定義を絶対に要約省略しない。
+### 🎯 エージェント行動の 5 大原則（全エージェント共通）
+1. **解像度の完全保持（最重要 / Zero Information Loss）**: 一次資料からの取り込み時、API パラメータ、DB カラム型、エラーコード等の詳細定義を絶対に要約省略しない。
 2. **Google OKF v0.2 Frontmatter 必須**: `wiki/` 配下のすべてのファイルに完全な Frontmatter を付与。
 3. **主張単位の根拠付け（Footnotes `[^id]`）**: 本文中の記述は `sources` の `id` と紐づく脚注記法で裏付けを明記。
 4. **非破壊的更新の原則**: 仕様変更時は過去の記述を削除せず、取り消し線（`~~`）で残すか `supersedes` / `superseded_by` で安全に世代交代。
@@ -289,7 +299,7 @@ status: active                   # 【推奨】draft | active | stale | deprecat
 # 1. Memory Lifecycle
 memory_tier: semantic            # working | episodic | semantic | procedural
 decay_rate: standard             # permanent (λ=0.002) | standard (λ=0.01) | volatile (λ=0.05)
-last_reinforced_at: 2026-08-14T16:00:00Z # 最終確認・強化日時
+last_reinforced_at: 2026-08-17T16:00:00Z # 最終確認・強化日時
 access_count: 12                 # 参照回数
 
 # 2. Confidence Scoring
@@ -304,12 +314,12 @@ confidence:
 
 # 3. 生成・検証情報
 generated:
-  by: agent:antigravity/gemini-3.7-flash
-  at: 2026-08-14T16:00:00Z
+  by: agent:claude-code/claude-3-7-sonnet  # または agent:antigravity/gemini-3.7-flash
+  at: 2026-08-17T16:00:00Z
 
 verified:
   by: human:slee
-  at: 2026-08-14T16:30:00Z
+  at: 2026-08-17T16:30:00Z
   method: manual_audit
 
 # 4. 来歴 (Provenance)
@@ -318,7 +328,7 @@ sources:
     resource: raw/04_detailed_designs/user_schema.xlsx
     title: ユーザー設計書
     authority: high
-    last_modified: 2026-08-14
+    last_modified: 2026-08-17
 
 # 5. ナレッジグラフ (Typed Relations)
 relations:
@@ -331,23 +341,18 @@ relations:
 
 ---
 
-## 🚀 Antigravity Skills の使い方
+## 🚀 エージェント操作・スラッシュコマンド & Skills
 
-### 1. 資料の追加・Wiki 化 (`llm-wiki-ingest`)
-一次資料（Excel, PDF, Word, SQL 等）を指定するだけで、不要な空セルや空行を自動クレンジングし、シークレットを除去した上で適切な `memory_tier`、初期確信度、`sources` ＋ 脚注を付与して取り込みます。
-> **プロンプト例:** 「`raw/04_detailed_designs/db_schema.xlsx` を Wiki に追加してください。」
+Google Antigravity の対話スキル（Skills）と、Claude Code のスラッシュコマンド（Commands）は 1:1 で対応しています。
 
-### 2. 質問・横断検索 (`llm-wiki-query`)
-ハイブリッド検索（BM25 + セマンティック + グラフ近傍）を実行し、減衰後確信度、メモリ階層、Graph Traversal（`implements`, `depends_on` 等）を辿って根拠（Footnotes / Sources）付きで回答します。検索ヒットは `metrics.db` に自動記録されます。
-> **プロンプト例:** 「パスワードロックの仕様と、関連するDBテーブル・API定義を教えてください。」
-
-### 3. 仕様変更・世代交代 (`llm-wiki-update`)
-仕様変更時に過去の記述を取り消し線（`~~`）で残しつつ更新し、忘却曲線を再強化（Reinforce）し、必要に応じて ADR 起票や旧ドキュメントの世代交代（`supersedes` / `superseded_by`）を行います。
-> **プロンプト例:** 「パスワード失敗時のロック時間を15分から30分に変更してください。」
-
-### 4. Wiki の整合性検査・修復 (`llm-wiki-lint`)
-OKF v0.2 + v2 適合性、リンク切れ、重複ID、ドラフト不正依存、グラフの矛盾、減衰（stale）ドキュメントを検査・修復します。
-> **プロンプト例:** 「Wiki 全体の整合性とナレッジグラフをチェックして更新してください。」
+| 操作 | Claude Code コマンド | Antigravity スキル | 説明 |
+| :--- | :--- | :--- | :--- |
+| **資料取り込み** | `/ingest <file_path>` | `llm-wiki-ingest` | 一次資料を自動クレンジング・機密除去して OKF Concept 化 |
+| **横断検索・質問** | `/query <question>` | `llm-wiki-query` | ハイブリッド検索で探索し、確信度・根拠（脚注）付きで回答 |
+| **仕様更新・ADR** | `/update <target>` | `llm-wiki-update` | 非破壊更新、忘却曲線再強化、ADR起票、世代交代 |
+| **整合性検査** | `/lint` | `llm-wiki-lint` | OKF v0.2 スキーマ、忘却曲線、リンク切れ、未インデックス検査 |
+| **表クレンジング** | `/clean <file_path>` | `llm-wiki-clean` | 粗い表の空セル・不要空行の削除、シークレットのマスク |
+| **Wiki一括同期** | `/sync` | `scripts/sync_wiki.py` | `index.md`, `log.md`, `graph.*` を一括自動再構築 |
 
 ---
 
@@ -432,12 +437,19 @@ flowchart TD
 - 意思決定・比較資料：`raw/05_decisions/`
 - その他（議事録・規約等）：`raw/99_others/`
 
-#### Step 2: Antigravity に Ingest（Wiki 化）を依頼
+#### Step 2: AI エージェント（Antigravity / Claude Code）に Ingest（Wiki 化）を依頼
 AI エージェントに資料の Wiki 化を指示します（または CLI ツールを使用）。
-> **プロンプト指示例:**
+
+> **Claude Code の場合:**
+> ```text
+> /ingest raw/04_detailed_designs/user_api_spec.xlsx
+> ```
+>
+> **Google Antigravity の場合:**
 > ```text
 > raw/04_detailed_designs/user_api_spec.xlsx を Wiki に追加してください。
 > ```
+
 * **エージェントが自動実行する処理**:
   1. **クレンジング & 機密マスク**: 表の空セル・不要空行の除去（`table_cleaner.py`）およびシークレット（APIキーや個人情報）のマスク。
   2. **解像度の 100% 保持**: パラメータ型、NULL 可否、エラーコード等の詳細仕様を省略せずに Markdown 化。

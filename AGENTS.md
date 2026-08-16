@@ -34,9 +34,14 @@ AI エージェント（Antigravity）は、単なるテキスト応答者では
 
 ---
 
-## 🛠️ 利用可能な Skills と スクリプト
+## 🛠️ 利用可能な Skills, スラッシュコマンドとスクリプト
 
-- **資料取り込み**: スキル `llm-wiki-ingest` / `scripts/convert_anydoc.py` / `scripts/table_cleaner.py`
-- **ハイブリッド検索・回答**: スキル `llm-wiki-query` / `scripts/hybrid_search.py` / `scripts/metrics_db.py`
-- **仕様更新・ADR起票**: スキル `llm-wiki-update` / `scripts/memory_decay.py`
-- **整合性検査・一括自動同期**: スキル `llm-wiki-lint` / `scripts/lint_okf.py` / `scripts/sync_wiki.py` (`build_indexes.py`, `build_changelog.py`, `build_graph.py`)
+本リポジトリは **Google Antigravity** および **Claude Code** の両方に対応しています。
+
+- **Claude Code 向け設定**: [`CLAUDE.md`](file:///Users/slee/Documents/gitRoot/llmwiki/CLAUDE.md) および [`.claude/commands/`](file:///Users/slee/Documents/gitRoot/llmwiki/.claude/commands/)（`/ingest`, `/query`, `/update`, `/lint`, `/clean`, `/sync`）
+- **Google Antigravity 向け設定**: [`.agents/skills/`](file:///Users/slee/Documents/gitRoot/llmwiki/.agents/skills/) および [`.agents/rules/`](file:///Users/slee/Documents/gitRoot/llmwiki/.agents/rules/)
+- **共通 Python スクリプト**:
+  - **資料取り込み**: スキル `llm-wiki-ingest` / `/ingest` / `scripts/convert_anydoc.py` / `scripts/table_cleaner.py`
+  - **ハイブリッド検索・回答**: スキル `llm-wiki-query` / `/query` / `scripts/hybrid_search.py` / `scripts/metrics_db.py`
+  - **仕様更新・ADR起票**: スキル `llm-wiki-update` / `/update` / `scripts/memory_decay.py`
+  - **整合性検査・一括自動同期**: スキル `llm-wiki-lint` / `/lint` / `/sync` / `scripts/lint_okf.py` / `scripts/sync_wiki.py` (`build_indexes.py`, `build_changelog.py`, `build_graph.py`)
