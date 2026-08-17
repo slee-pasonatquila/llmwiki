@@ -184,12 +184,12 @@ llmwiki/
 ├── GEMINI.md                      # 【Google Antigravity】マスター指示 (エイリアス)
 ├── .claude/
 │   └── commands/                  # 【Claude Code】カスタムスラッシュコマンド定義
-│       ├── ingest.md              # /ingest: 一次資料取り込み・OKF知識化
-│       ├── query.md               # /query: ハイブリッド検索・仕様回答
-│       ├── update.md              # /update: 仕様更新・ADR起票・世代交代
-│       ├── lint.md                # /lint: OKF整合性・忘却曲線検査
-│       ├── clean.md               # /clean: Markdown表クレンジング・機密マスク
-│       └── sync.md                # /sync: index/log/graph 一括自動再構築
+│       ├── llmwiki_ingest.md      # /llmwiki_ingest: 一次資料取り込み・OKF知識化
+│       ├── llmwiki_query.md       # /llmwiki_query: ハイブリッド検索・仕様回答
+│       ├── llmwiki_update.md      # /llmwiki_update: 仕様更新・ADR起票・世代交代
+│       ├── llmwiki_lint.md        # /llmwiki_lint: OKF整合性・忘却曲線検査
+│       ├── llmwiki_clean.md       # /llmwiki_clean: Markdown表クレンジング・機密マスク
+│       └── llmwiki_sync.md        # /llmwiki_sync: index/log/graph 一括自動再構築
 ├── .agents/
 │   ├── rules/                     # 【Antigravity Rules】自動適用されるモジュール別品質・行動規約
 │   │   ├── 01_core_philosophy.md  # 設計思想・解像度100%保持・機密スクラビング規約
@@ -198,11 +198,12 @@ llmwiki/
 │   │   ├── 04_wiki_operations.md  # 複数人協調・非破壊更新・自動同期オペレーション
 │   │   └── 05_git_workflow.md     # トピックブランチ・コミット規約・CI/CD フロー
 │   └── skills/                    # 【Antigravity Skills】オンデマンド対話型 Runbook
-│       ├── llm-wiki-clean/        # Markdown 不要空欄・Excel空セル削除・シークレット除去
-│       ├── llm-wiki-ingest/       # 一次資料取り込み・OKF v0.2 知識化・脚注付与
-│       ├── llm-wiki-lint/         # OKF v0.2 整合性・ゴーストリンク・重複ID・グラフ検査
-│       ├── llm-wiki-query/        # ハイブリッド検索・Graph Traversal・仕様回答
-│       └── llm-wiki-update/       # 仕様変更・ADR 起票・忘却曲線再強化・世代交代
+│       ├── llmwiki_clean/         # Markdown 不要空欄・Excel空セル削除・シークレット除去
+│       ├── llmwiki_ingest/        # 一次資料取り込み・OKF v0.2 知識化・脚注付与
+│       ├── llmwiki_lint/          # OKF v0.2 整合性・ゴーストリンク・重複ID・グラフ検査
+│       ├── llmwiki_query/         # ハイブリッド検索・Graph Traversal・仕様回答
+│       ├── llmwiki_update/        # 仕様変更・ADR 起票・忘却曲線再強化・世代交代
+│       └── llmwiki_sync/          # index/log/graph 一括自動再構築スキル
 ├── .github/
 │   ├── CODEOWNERS                 # ドメイン別レビュー担当者定義
 │   ├── pull_request_template.md   # OKF v0.2 & 複数人協調 PR テンプレート
@@ -262,9 +263,9 @@ flowchart TD
         R5["05_git_workflow.md (Git PR & コミット規約)"]
     end
 
-    subgraph "エージェント実行インターフェース"
-        S_AG["Antigravity Skills<br/>(.agents/skills/*)"]
-        S_CC["Claude Code Commands<br/>(.claude/commands/*)"]
+    subgraph "エージェント実行インターフェース（同一名称 llmwiki_*）"
+        S_AG["Antigravity Skills<br/>(/llmwiki_*)"]
+        S_CC["Claude Code Commands<br/>(/llmwiki_*)"]
     end
 
     subgraph "共通自動化ツール (scripts/)"
@@ -343,16 +344,16 @@ relations:
 
 ## 🚀 エージェント操作・スラッシュコマンド & Skills
 
-Google Antigravity の対話スキル（Skills）と、Claude Code のスラッシュコマンド（Commands）は 1:1 で対応しています。
+Google Antigravity の対話スキル（Skills）と、Claude Code のスラッシュコマンド（Commands）は `llmwiki_` プレフィックス付きの同一名称で統一されています。
 
-| 操作 | Claude Code コマンド | Antigravity スキル | 説明 |
+| 操作 | Claude Code コマンド | Antigravity スキル (`/` 呼び出し可) | 説明 |
 | :--- | :--- | :--- | :--- |
-| **資料取り込み** | `/ingest <file_path>` | `llm-wiki-ingest` | 一次資料を自動クレンジング・機密除去して OKF Concept 化 |
-| **横断検索・質問** | `/query <question>` | `llm-wiki-query` | ハイブリッド検索で探索し、確信度・根拠（脚注）付きで回答 |
-| **仕様更新・ADR** | `/update <target>` | `llm-wiki-update` | 非破壊更新、忘却曲線再強化、ADR起票、世代交代 |
-| **整合性検査** | `/lint` | `llm-wiki-lint` | OKF v0.2 スキーマ、忘却曲線、リンク切れ、未インデックス検査 |
-| **表クレンジング** | `/clean <file_path>` | `llm-wiki-clean` | 粗い表の空セル・不要空行の削除、シークレットのマスク |
-| **Wiki一括同期** | `/sync` | `scripts/sync_wiki.py` | `index.md`, `log.md`, `graph.*` を一括自動再構築 |
+| **資料取り込み** | `/llmwiki_ingest <file_path>` | `llmwiki_ingest`（または `/llmwiki_ingest`） | 一次資料を自動クレンジング・機密除去して OKF Concept 化 |
+| **横断検索・質問** | `/llmwiki_query <question>` | `llmwiki_query`（または `/llmwiki_query`） | ハイブリッド検索で探索し、確信度・根拠（脚注）付きで回答 |
+| **仕様更新・ADR** | `/llmwiki_update <target>` | `llmwiki_update`（または `/llmwiki_update`） | 非破壊更新、忘却曲線再強化、ADR起票、世代交代 |
+| **整合性検査** | `/llmwiki_lint` | `llmwiki_lint`（または `/llmwiki_lint`） | OKF v0.2 スキーマ、忘却曲線、リンク切れ、未インデックス検査 |
+| **表クレンジング** | `/llmwiki_clean <file_path>` | `llmwiki_clean`（または `/llmwiki_clean`） | 粗い表の空セル・不要空行の削除、シークレットのマスク |
+| **Wiki一括同期** | `/llmwiki_sync` | `llmwiki_sync`（または `/llmwiki_sync`） | `index.md`, `log.md`, `graph.*` を一括自動再構築 |
 
 ---
 
@@ -442,13 +443,18 @@ AI エージェントに資料の Wiki 化を指示します（または CLI ツ
 
 > **Claude Code の場合:**
 > ```text
-> /ingest raw/04_detailed_designs/user_api_spec.xlsx
+> /llmwiki_ingest raw/04_detailed_designs/user_api_spec.xlsx
 > ```
 >
 > **Google Antigravity の場合:**
-> ```text
-> raw/04_detailed_designs/user_api_spec.xlsx を Wiki に追加してください。
-> ```
+> - スラッシュコマンドで直接スキルを呼び出す場合:
+>   ```text
+>   /llmwiki_ingest raw/04_detailed_designs/user_api_spec.xlsx
+>   ```
+> - 自然言語プロンプトで指示する場合:
+>   ```text
+>   raw/04_detailed_designs/user_api_spec.xlsx を Wiki に追加してください。
+>   ```
 
 * **エージェントが自動実行する処理**:
   1. **クレンジング & 機密マスク**: 表の空セル・不要空行の除去（`table_cleaner.py`）およびシークレット（APIキーや個人情報）のマスク。
@@ -460,6 +466,7 @@ AI エージェントに資料の Wiki 化を指示します（または CLI ツ
 #### Step 3: ローカル整合性検証
 作業ブランチでリントを実行し、エラーがないことを確認します。
 ```bash
+# スラッシュコマンドで実行する場合: /llmwiki_lint
 python3 scripts/lint_okf.py wiki/
 ```
 
@@ -475,16 +482,26 @@ python3 scripts/lint_okf.py wiki/
 
 #### パターン A: 一次資料（原本）が更新された場合
 1. `raw/` 配下の該当ファイルを最新版に上書き配置します。
-2. Antigravity に更新取り込みを依頼します。
-   > **プロンプト指示例:**
+2. エージェント（Claude Code / Antigravity）に更新取り込みを依頼します。
+   > **スラッシュコマンドによる直接呼び出し:**
+   > ```text
+   > /llmwiki_update raw/04_detailed_designs/user_api_spec.xlsx の変更内容を Wiki に反映してください
+   > ```
+   >
+   > **自然言語プロンプト:**
    > ```text
    > raw/04_detailed_designs/user_api_spec.xlsx の変更内容を Wiki に反映してください。
    > ```
 3. エージェントが新旧差分を解析し、以下の非破壊的更新を適用します。
 
 #### パターン B: Wiki 上で直接仕様変更・設計見直しを行う場合
-1. Antigravity に対話で仕様変更を依頼します。
-   > **プロンプト指示例:**
+1. エージェントに対話またはスラッシュコマンドで仕様変更を依頼します。
+   > **スラッシュコマンドによる直接呼び出し:**
+   > ```text
+   > /llmwiki_update パスワード連続失敗時のアカウントロック期間を「15分」から「30分」に変更し、関連ドキュメントも更新してください
+   > ```
+   >
+   > **自然言語プロンプト:**
    > ```text
    > パスワード連続失敗時のアカウントロック期間を「15分」から「30分」に変更し、関連ドキュメントも更新してください。
    > ```

@@ -28,12 +28,12 @@ Claude Code 内では、以下のスラッシュコマンド（または Python 
 
 | スラッシュコマンド | 実行する Python スクリプト / 役割 | 説明 |
 | :--- | :--- | :--- |
-| `/ingest <file_path>` | `python3 scripts/convert_anydoc.py` + Wiki編纂 | 一次資料を取り込み、クレンジング・機密除去後に OKF Concept ドキュメントとして生成 |
-| `/query <question>` | `python3 scripts/hybrid_search.py "<question>"` | ハイブリッド検索（BM25 + グラフ近傍）でナレッジを横断探索し、確信度・根拠付きで回答 |
-| `/update <target_file>` | `python3 scripts/memory_decay.py --reinforce` + 編集 | 仕様変更の適用、忘却曲線の強化、世代交代（supersedes）、ADR起票 |
-| `/lint` | `python3 scripts/lint_okf.py wiki/` | OKF v0.2 スキーマ、忘却曲線、リンク切れ、未インデックスファイルの自動整合性検査 |
-| `/clean <file_path>` | `python3 scripts/table_cleaner.py <file_path>` | 粗い Markdown・表データの空セル・不要空行の自動削除と機密情報マスク |
-| `/sync` | `python3 scripts/sync_wiki.py` | `index.md`, `log.md`, `graph.json` / `mermaid` を一括自動再構築 |
+| `/llmwiki_ingest <file_path>` | `python3 scripts/convert_anydoc.py` + Wiki編纂 | 一次資料を取り込み、クレンジング・機密除去後に OKF Concept ドキュメントとして生成 |
+| `/llmwiki_query <question>` | `python3 scripts/hybrid_search.py "<question>"` | ハイブリッド検索（BM25 + グラフ近傍）でナレッジを横断探索し、確信度・根拠付きで回答 |
+| `/llmwiki_update <target>` | `python3 scripts/memory_decay.py --reinforce` + 編集 | 仕様変更の適用、忘却曲線の強化、世代交代（supersedes）、ADR起票 |
+| `/llmwiki_lint` | `python3 scripts/lint_okf.py wiki/` | OKF v0.2 スキーマ、忘却曲線、リンク切れ、未インデックスファイルの自動整合性検査 |
+| `/llmwiki_clean <file_path>` | `python3 scripts/table_cleaner.py <file_path>` | 粗い Markdown・表データの空セル・不要空行の自動削除と機密情報マスク |
+| `/llmwiki_sync` | `python3 scripts/sync_wiki.py` | `index.md`, `log.md`, `graph.json` / `mermaid` を一括自動再構築 |
 
 ---
 
@@ -43,8 +43,9 @@ Claude Code 内では、以下のスラッシュコマンド（または Python 
 llmwiki/
 ├── CLAUDE.md              # Claude Code 向けガイドライン（本ファイル）
 ├── AGENTS.md / GEMINI.md  # Google Antigravity / Gemini 向けガイドライン
-├── .claude/commands/      # Claude Code カスタムスラッシュコマンド定義
-├── .agents/               # Antigravity Rules / Skills 定義
+├── .claude/commands/      # Claude Code カスタムスラッシュコマンド定義 (llmwiki_*.md)
+├── .agents/skills/        # Antigravity Skills 定義 (llmwiki_*/SKILL.md)
+├── .agents/rules/         # Antigravity & Claude 共通行動規約
 ├── raw/                   # 一次資料（Excel, Word, PowerPoint, PDF, SQL, text）
 ├── scripts/               # 自動化 Python スクリプト群
 └── wiki/                  # OKF v0.2 構造化ナレッジ層

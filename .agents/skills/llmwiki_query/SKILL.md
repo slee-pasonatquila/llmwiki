@@ -1,9 +1,9 @@
 ---
-name: llm-wiki-query
+name: llmwiki_query
 description: "LLM Wiki 内の編集済み知識層をハイブリッド検索 (BM25 + Semantic + Graph Proximity) および Typed Graph Traversal（implements, depends_on 等）で横断探索し、確信度スコア（減衰考慮）、メモリ階層、Provenance（sources/脚注）を付与して開発者の質問に高精度で回答するスキル。"
 ---
 
-# LLM Wiki Query Skill (OKF v0.2 & LLM Wiki v2 準拠)
+# LLM Wiki Query Skill (`llmwiki_query`) (OKF v0.2 & LLM Wiki v2 準拠)
 
 このスキルは、開発プロジェクトにおいて「顧客要望」「要件定義」「概要設計」「詳細設計」「意思決定（ADR）」の間にあるセマンティックな関係性を辿りながら、質問に対して正確な回答を合成・提示します。
 

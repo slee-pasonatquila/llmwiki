@@ -1,4 +1,4 @@
-# Lint Command (`/lint`)
+# Lint Command (`/llmwiki_lint`)
 
 Google OKF (v0.2) および LLM Wiki v2 仕様への適合性、忘却曲線（stale ドキュメント検知）、ゴーストリンク、未インデックスファイル、ナレッジグラフの矛盾（`contradicts`）や孤立ノード、sources/脚注（Provenance）の欠落、supersedes 参照整合性を機械的に検査・検証します。
 

@@ -1,9 +1,9 @@
 ---
-name: llm-wiki-lint
+name: llmwiki_lint
 description: "Google OKF (v0.2) および LLM Wiki v2 仕様への適合性、忘却曲線（stale ドキュメント検知）、ゴーストリンク、未インデックスファイル、ナレッジグラフの矛盾（contradicts）や孤立ノード、sources/脚注（Provenance）の欠落、supersedes 参照整合性を機械的に検査・自動修復するスキル。"
 ---
 
-# LLM Wiki Lint Skill (OKF v0.2 & LLM Wiki v2 準拠)
+# LLM Wiki Lint Skill (`llmwiki_lint`) (OKF v0.2 & LLM Wiki v2 準拠)
 
 このスキルは、Wiki 全体の健全性、OKF v0.2 適合性、LLM Wiki v2 のナレッジグラフ整合性、および忘却曲線（減衰した stale 知識）を機械的に検査し、不整合を修復します。
 

@@ -1,9 +1,9 @@
 ---
-name: llm-wiki-clean
+name: llmwiki_clean
 description: "Office (Excel, Word, PowerPoint) や PDF から anydoc 等で変換された粗い Markdown に対し、不要な空欄・空行・大量の空セル（| | | |）を削除し、機密情報をマスクした上で、表構造や見出しを美しく再構成するスキル。"
 ---
 
-# LLM Wiki Clean Skill (OKF v0.2 & LLM Wiki v2 準拠)
+# LLM Wiki Clean Skill (`llmwiki_clean`) (OKF v0.2 & LLM Wiki v2 準拠)
 
 このスキルは、`anydoc` や各種コンバーターによって変換された直後の Markdown ファイルからノイズを除去し、人間の可読性と AI エージェントの検索精度を最大化するクリーンな Markdown に整形します。
 
@@ -46,27 +46,3 @@ python3 scripts/table_cleaner.py <対象ファイル.md> <整形先ファイル.
    - SQL や DDL、JSON、コード片は必ず ` ```sql ` などのフェンスドコードブロックで囲む。
 4. **未確定箇所の明記**:
    - 原本で欠落している値や「TBD」「要確認」と書かれている箇所は勝手に想像で埋めず、`要確認: [内容]` として明記する。
-
----
-
-## 出力例 (Before & After)
-
-### Before (変換直後の粗い Markdown)
-```markdown
-| No | 項目名 | | | 型 | | 必須 | 備考 | | |
-|---|---|---|---|---|---|---|---|---|---|
-| 1 | user_id | | | UUID | | ◯ | 主キー | | |
-| 2 | email | | | VARCHAR | | ◯ | | | |
-| | | | | | | | | | |
-| | | | | | | | | | |
-```
-
-### After (llm-wiki-clean 整形後)
-```markdown
-# ユーザーテーブル定義
-
-| No | 項目名 | 型 | 必須 | 備考 |
-| :--- | :--- | :--- | :--- | :--- |
-| 1 | `user_id` | UUID | ◯ | 主キー (UUID v4) |
-| 2 | `email` | VARCHAR(255) | ◯ | ログイン用メールアドレス |
-```

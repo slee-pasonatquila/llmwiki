@@ -1,4 +1,4 @@
-# Update Command (`/update <target_concept_or_topic>`)
+# Update Command (`/llmwiki_update <target_concept_or_topic>`)
 
 要件変更や設計見直しが発生した際に、既存の Wiki ドキュメントを更新し、忘却曲線の再強化（Reinforce）、OKF v0.2 の世代交代（`supersedes` / `superseded_by`）、矛盾解決、非破壊的更新（取り消し線保持）、ADR の新規起票を行います。
 

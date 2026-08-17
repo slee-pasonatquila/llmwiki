@@ -1,4 +1,4 @@
-# Query Command (`/query <question>`)
+# Query Command (`/llmwiki_query <question>`)
 
 LLM Wiki 内の編纂済みナレッジ層を横断探索（BM25 + Semantic + Graph Proximity + Typed Graph Traversal）し、確信度スコア（忘却曲線の減衰考慮）、メモリ階層、Provenance（一次資料根拠・脚注）を付与して回答します。
 

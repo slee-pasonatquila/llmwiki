@@ -1,11 +1,11 @@
 ---
-name: llm-wiki-ingest
+name: llmwiki_ingest
 description: "一次資料 (Office, PDF, SQL, text 等) を自動クレンジング・機密除去して取り込み、Google OKF (Open Knowledge Format v0.2) & LLM Wiki v2 準拠の Concept ドキュメント（sources, confidence, memory_tier, 脚注 [^id], relations 完備）として wiki/ 配下に分類・出力し、index.md, log.md, graph.json/mermaid を自動更新するスキル。"
 ---
 
-# LLM Wiki Ingest Skill (OKF v0.2 & LLM Wiki v2 準拠)
+# LLM Wiki Ingest Skill (`llmwiki_ingest`) (OKF v0.2 & LLM Wiki v2 準拠)
 
-このスキルは、ユーザーから「資料をWikiに追加して」と指示された際に、`raw/` 配下に配置された各種書類（顧客要望、要件定義書、概要設計書、詳細設計書、議事録など）を読み込み、**自動クレンジング（空セル・不要空行の削除等）** および **シークレット除去（APIキー・パスワード・個人情報のマスク）** を施した上で、**Google OKF (v0.2)** および **LLM Wiki v2** 仕様に従って構造化された知識ファイル（Concept ドキュメント）として `wiki/` に編纂・配置します。
+このスキルは、ユーザーから「資料をWikiに追加して」と指示された際、または `/llmwiki_ingest <file_path>` が実行された際に、`raw/` 配下に配置された各種書類（顧客要望、要件定義書、概要設計書、詳細設計書、議事録など）を読み込み、**自動クレンジング（空セル・不要空行の削除等）** および **シークレット除去（APIキー・パスワード・個人情報のマスク）** を施した上で、**Google OKF (v0.2)** および **LLM Wiki v2** 仕様に従って構造化された知識ファイル（Concept ドキュメント）として `wiki/` に編纂・配置します。
 
 ---
 
@@ -52,7 +52,7 @@ status: draft                    # 取り込み直後は draft（PR承認で act
 # Memory Lifecycle
 memory_tier: semantic
 decay_rate: standard
-last_reinforced_at: 2026-08-14T16:00:00Z
+last_reinforced_at: 2026-08-17T16:00:00Z
 access_count: 1
 
 # Confidence Scoring
@@ -66,15 +66,15 @@ confidence:
     has_contradictions: false
 
 generated:
-  by: agent:antigravity/gemini-3.7-flash
-  at: 2026-08-14T16:00:00Z
+  by: agent:antigravity/gemini-3.7-flash  # または agent:claude-code/<model>
+  at: 2026-08-17T16:00:00Z
 
 sources:
-  - id: user-schema-v1
+  - id: src-1
     resource: raw/04_detailed_designs/user_schema.xlsx
     title: ユーザー設計書
     authority: high
-    last_modified: 2026-08-14
+    last_modified: 2026-08-17
 
 relations:
   implements: [02_requirements/req_user_management]

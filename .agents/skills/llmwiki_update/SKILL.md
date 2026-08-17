@@ -1,9 +1,9 @@
 ---
-name: llm-wiki-update
+name: llmwiki_update
 description: "要件変更や設計見直しが発生した際に、既存の Wiki ドキュメントを更新し、忘却曲線の再強化（Reinforce）、OKF v0.2 の世代交代（supersedes / superseded_by）、矛盾解決、変更履歴（log.md）の Actor 記録、過去記述の取り消し線（~~）保持、ADR の新規起票、ナレッジグラフ再生成を行うスキル。"
 ---
 
-# LLM Wiki Update Skill (OKF v0.2 & LLM Wiki v2 準拠)
+# LLM Wiki Update Skill (`llmwiki_update`) (OKF v0.2 & LLM Wiki v2 準拠)
 
 このスキルは、プロジェクト進行中に発生する「仕様変更」「追加要望」「設計見直し」を LLM Wiki に反映し、知識の鮮度（忘却曲線の再強化）、世代交代、矛盾解決、変更履歴の透明性を維持します。
 

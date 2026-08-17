@@ -1,4 +1,4 @@
-# Clean Command (`/clean <file_path>`)
+# Clean Command (`/llmwiki_clean <file_path>`)
 
 Office (Excel, Word, PowerPoint) や PDF から変換された粗い Markdown に対し、不要な空欄・空行・大量の空セル（`| | | |`）を削除し、機密情報をマスクした上で、表構造や見出しを美しく再構成します。
 

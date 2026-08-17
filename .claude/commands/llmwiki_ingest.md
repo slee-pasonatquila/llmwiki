@@ -1,4 +1,4 @@
-# Ingest Command (`/ingest <file_path>`)
+# Ingest Command (`/llmwiki_ingest <file_path>`)
 
 一次資料（Excel, Word, PowerPoint, PDF, SQL, text 等）を自動クレンジング・機密除去して取り込み、Google OKF (v0.2) & LLM Wiki v2 準拠の Concept ドキュメント（Frontmatter、脚注 `[^id]`、`relations` 完備）として `wiki/` 配下に編纂します。
 
